@@ -201,10 +201,16 @@ def _load_external_personas():
 # two places at once is exactly what we're refactoring away from.
 PERSONAS = _load_external_personas() or _BUILTIN_PERSONAS
 
+# Default persona key. Prefer "nova" when present (historical default and what
+# legacy callers / active_persona.json files reference), otherwise the first key
+# from whatever the vault gave us. This keeps the API stable even when an
+# external vault drops "nova" entirely.
+DEFAULT_PERSONA_KEY = "nova" if "nova" in PERSONAS else next(iter(PERSONAS))
+
 
 def get_persona(name):
-    """Get persona by key. Falls back to nova."""
-    return PERSONAS.get(name, PERSONAS["nova"])
+    """Get persona by key. Falls back to the default persona."""
+    return PERSONAS.get(name, PERSONAS[DEFAULT_PERSONA_KEY])
 
 
 def get_active_persona():
@@ -212,12 +218,12 @@ def get_active_persona():
     if ACTIVE_PERSONA_FILE.exists():
         try:
             data = json.loads(ACTIVE_PERSONA_FILE.read_text())
-            key = data.get("key", "nova")
+            key = data.get("key", DEFAULT_PERSONA_KEY)
             if key in PERSONAS:
                 return key, PERSONAS[key]
-        except Exception:
-            pass
-    return "nova", PERSONAS["nova"]
+        except (OSError, json.JSONDecodeError) as exc:
+            logger.warning("active_persona.json unreadable (%s); falling back to default", exc)
+    return DEFAULT_PERSONA_KEY, PERSONAS[DEFAULT_PERSONA_KEY]
 
 
 def set_active_persona(name):

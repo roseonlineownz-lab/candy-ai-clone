@@ -85,3 +85,37 @@ def test_vault_empty_after_validation_falls_back(monkeypatch, tmp_path: Path):
     monkeypatch.setenv("UNCENSORED_VAULT_PATH", str(tmp_path))
     brain = _reload_brain()
     assert brain.PERSONAS is brain._BUILTIN_PERSONAS
+
+
+def test_default_key_falls_back_to_first_when_no_nova(monkeypatch, tmp_path: Path):
+    """When the vault drops the nova key, get_persona / get_active_persona must
+    not raise KeyError. The default key is whatever the vault offered first."""
+    vault = tmp_path / "vault"
+    repo_dir = vault / "candy-ai-clone"
+    repo_dir.mkdir(parents=True)
+    payload = {
+        "alpha": {"name": "Alpha", "type": "test", "system_prompt": "You are Alpha."},
+        "beta": {"name": "Beta", "type": "test", "system_prompt": "You are Beta."},
+    }
+    (repo_dir / "personas.json").write_text(json.dumps(payload), encoding="utf-8")
+    monkeypatch.setenv("UNCENSORED_VAULT_PATH", str(vault))
+    brain = _reload_brain()
+
+    assert "nova" not in brain.PERSONAS
+    assert brain.DEFAULT_PERSONA_KEY == "alpha"
+
+    # Looking up a missing name returns the default (alpha) — no KeyError.
+    fallback = brain.get_persona("nonexistent")
+    assert fallback["name"] == "Alpha"
+
+    # get_active_persona() with no active_persona.json returns the default key.
+    key, persona = brain.get_active_persona()
+    assert key == "alpha"
+    assert persona["name"] == "Alpha"
+
+
+def test_default_key_is_nova_when_present(monkeypatch):
+    """Sanity: with the built-in personas, the default is still 'nova'."""
+    monkeypatch.delenv("UNCENSORED_VAULT_PATH", raising=False)
+    brain = _reload_brain()
+    assert brain.DEFAULT_PERSONA_KEY == "nova"
