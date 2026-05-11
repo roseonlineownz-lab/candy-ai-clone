@@ -184,8 +184,12 @@ def _load_external_personas():
         if not isinstance(val, dict):
             logger.warning("persona %r in vault is not an object; skipping", key)
             continue
-        if not val.get("system_prompt"):
-            logger.warning("persona %r in vault is missing system_prompt; skipping", key)
+        missing = [field for field in ("name", "type", "system_prompt") if not val.get(field)]
+        if missing:
+            logger.warning(
+                "persona %r in vault is missing required fields %s; skipping",
+                key, ", ".join(missing),
+            )
             continue
         cleaned[key] = val
     if not cleaned:

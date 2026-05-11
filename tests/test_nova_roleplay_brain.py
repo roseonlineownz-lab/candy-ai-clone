@@ -87,6 +87,26 @@ def test_vault_empty_after_validation_falls_back(monkeypatch, tmp_path: Path):
     assert brain.PERSONAS is brain._BUILTIN_PERSONAS
 
 
+def test_vault_skips_entries_missing_name_or_type(monkeypatch, tmp_path: Path):
+    """Validation must require name+type+system_prompt — downstream callers
+    (list_personas, the FastAPI /api/personas endpoint) access ["name"] and
+    ["type"] unconditionally, so anything that lacks them must be dropped."""
+    repo_dir = tmp_path / "candy-ai-clone"
+    repo_dir.mkdir(parents=True)
+    payload = {
+        "ok": {"name": "OK", "type": "test", "system_prompt": "yes"},
+        "no_name": {"type": "test", "system_prompt": "yes"},        # missing name
+        "no_type": {"name": "NoType", "system_prompt": "yes"},      # missing type
+    }
+    (repo_dir / "personas.json").write_text(json.dumps(payload), encoding="utf-8")
+    monkeypatch.setenv("UNCENSORED_VAULT_PATH", str(tmp_path))
+    brain = _reload_brain()
+    assert set(brain.PERSONAS) == {"ok"}
+    # list_personas() must not raise KeyError after this filter
+    listing = brain.list_personas()
+    assert listing == {"ok": {"name": "OK", "type": "test"}}
+
+
 def test_default_key_falls_back_to_first_when_no_nova(monkeypatch, tmp_path: Path):
     """When the vault drops the nova key, get_persona / get_active_persona must
     not raise KeyError. The default key is whatever the vault offered first."""
