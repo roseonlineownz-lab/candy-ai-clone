@@ -7,6 +7,24 @@ from pathlib import Path
 
 ACTIVE_PERSONA_FILE = Path(__file__).resolve().parent.parent / "active_persona.json"
 
+# Optional: load personas from external uncensored-vault repo.
+# Set UNCENSORED_VAULT_PATH env var to a local clone of the vault repo.
+# Falls back to built-in personas if vault is unavailable.
+_VAULT_PATH = os.environ.get("UNCENSORED_VAULT_PATH")
+if _VAULT_PATH:
+    _vault_personas = Path(_VAULT_PATH) / "personas" / "personas.json"
+    if _vault_personas.exists():
+        try:
+            _vault_data = json.loads(_vault_personas.read_text())
+            # Vault personas override built-in ones where keys match
+            _VAULT_PERSONAS = _vault_data
+        except Exception:
+            _VAULT_PERSONAS = {}
+    else:
+        _VAULT_PERSONAS = {}
+else:
+    _VAULT_PERSONAS = {}
+
 PERSONAS = {
     "nova": {
         "name": "Nova",
@@ -143,8 +161,9 @@ PERSONAS = {
 
 
 def get_persona(name):
-    """Get persona by key. Falls back to nova."""
-    return PERSONAS.get(name, PERSONAS["nova"])
+    """Get persona by key. Vault personas take priority. Falls back to nova."""
+    merged = {**PERSONAS, **_VAULT_PERSONAS}
+    return merged.get(name, PERSONAS["nova"])
 
 
 def get_active_persona():
@@ -172,8 +191,9 @@ def set_active_persona(name):
 
 
 def list_personas():
-    """List all available personas for UI."""
-    return {k: {"name": v["name"], "type": v["type"]} for k, v in PERSONAS.items()}
+    """List all available personas for UI (built-in + vault)."""
+    merged = {**PERSONAS, **_VAULT_PERSONAS}
+    return {k: {"name": v["name"], "type": v["type"]} for k, v in merged.items()}
 
 
 if __name__ == "__main__":
