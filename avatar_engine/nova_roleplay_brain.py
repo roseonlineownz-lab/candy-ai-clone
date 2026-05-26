@@ -1,31 +1,18 @@
 import json
+import logging
 import os
 from pathlib import Path
 
 # 🔞 NOVA ROLEPLAY ENGINE V6.0 — Multi-Persona Candy AI Clone
 # Vlaams, geen speciale tekens, geilere prompts.
 
+logger = logging.getLogger(__name__)
+
 ACTIVE_PERSONA_FILE = Path(__file__).resolve().parent.parent / "active_persona.json"
 
-# Optional: load personas from external uncensored-vault repo.
-# Set UNCENSORED_VAULT_PATH env var to a local clone of the vault repo.
-# Falls back to built-in personas if vault is unavailable.
-_VAULT_PATH = os.environ.get("UNCENSORED_VAULT_PATH")
-if _VAULT_PATH:
-    _vault_personas = Path(_VAULT_PATH) / "personas" / "personas.json"
-    if _vault_personas.exists():
-        try:
-            _vault_data = json.loads(_vault_personas.read_text())
-            # Vault personas override built-in ones where keys match
-            _VAULT_PERSONAS = _vault_data
-        except Exception:
-            _VAULT_PERSONAS = {}
-    else:
-        _VAULT_PERSONAS = {}
-else:
-    _VAULT_PERSONAS = {}
-
-PERSONAS = {
+# In-repo personas (the historical default). External vaults override this dict
+# at module load time via load_external_personas(); see UNCENSORED_VAULT_PATH below.
+_BUILTIN_PERSONAS = {
     "nova": {
         "name": "Nova",
         "type": "girlfriend",
@@ -160,10 +147,74 @@ PERSONAS = {
 }
 
 
+def _load_external_personas():
+    """Load personas from `${UNCENSORED_VAULT_PATH}/candy-ai-clone/personas.json` when set.
+
+    Returns the loaded dict on success, or None to signal the caller should fall
+    back to the in-repo default. Validation is intentionally minimal: each entry
+    must be a dict and contain at least a non-empty `system_prompt`. Anything else
+    is logged and the override is discarded so the app stays bootable.
+
+    External file format (JSON):
+        {
+          "nova": {
+            "name": "Nova", "type": "girlfriend",
+            "system_prompt": "...",
+            "voice": "nl-BE-DenaNeural", "avatar": "nova_face_512.jpg"
+          },
+          ...
+        }
+    """
+    vault = os.getenv("UNCENSORED_VAULT_PATH")
+    if not vault:
+        return None
+    path = Path(vault).expanduser() / "candy-ai-clone" / "personas.json"
+    if not path.is_file():
+        return None
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        logger.warning("UNCENSORED_VAULT_PATH personas.json unreadable (%s); using built-in personas", exc)
+        return None
+    if not isinstance(raw, dict) or not raw:
+        logger.warning("UNCENSORED_VAULT_PATH personas.json must be a non-empty object; using built-in personas")
+        return None
+    cleaned = {}
+    for key, val in raw.items():
+        if not isinstance(val, dict):
+            logger.warning("persona %r in vault is not an object; skipping", key)
+            continue
+        missing = [field for field in ("name", "type", "system_prompt") if not val.get(field)]
+        if missing:
+            logger.warning(
+                "persona %r in vault is missing required fields %s; skipping",
+                key, ", ".join(missing),
+            )
+            continue
+        cleaned[key] = val
+    if not cleaned:
+        logger.warning("UNCENSORED_VAULT_PATH personas.json had no valid entries; using built-in personas")
+        return None
+    logger.info("Loaded %d personas from UNCENSORED_VAULT_PATH=%s", len(cleaned), path)
+    return cleaned
+
+
+# Resolve PERSONAS once at import time. The external file (if present) replaces
+# the built-in dict wholesale; we do not merge so that the vault stays the
+# single source of truth when active. This is by design: NSFW prompts living in
+# two places at once is exactly what we're refactoring away from.
+PERSONAS = _load_external_personas() or _BUILTIN_PERSONAS
+
+# Default persona key. Prefer "nova" when present (historical default and what
+# legacy callers / active_persona.json files reference), otherwise the first key
+# from whatever the vault gave us. This keeps the API stable even when an
+# external vault drops "nova" entirely.
+DEFAULT_PERSONA_KEY = "nova" if "nova" in PERSONAS else next(iter(PERSONAS))
+
+
 def get_persona(name):
-    """Get persona by key. Vault personas take priority. Falls back to nova."""
-    merged = {**PERSONAS, **_VAULT_PERSONAS}
-    return merged.get(name, PERSONAS["nova"])
+    """Get persona by key. Falls back to the default persona."""
+    return PERSONAS.get(name, PERSONAS[DEFAULT_PERSONA_KEY])
 
 
 def get_active_persona():
@@ -171,12 +222,12 @@ def get_active_persona():
     if ACTIVE_PERSONA_FILE.exists():
         try:
             data = json.loads(ACTIVE_PERSONA_FILE.read_text())
-            key = data.get("key", "nova")
+            key = data.get("key", DEFAULT_PERSONA_KEY)
             if key in PERSONAS:
                 return key, PERSONAS[key]
-        except Exception:
-            pass
-    return "nova", PERSONAS["nova"]
+        except (OSError, json.JSONDecodeError) as exc:
+            logger.warning("active_persona.json unreadable (%s); falling back to default", exc)
+    return DEFAULT_PERSONA_KEY, PERSONAS[DEFAULT_PERSONA_KEY]
 
 
 def set_active_persona(name):
@@ -191,9 +242,16 @@ def set_active_persona(name):
 
 
 def list_personas():
-    """List all available personas for UI (built-in + vault)."""
-    merged = {**PERSONAS, **_VAULT_PERSONAS}
-    return {k: {"name": v["name"], "type": v["type"]} for k, v in merged.items()}
+    """List all available personas for UI."""
+    return {k: {"name": v["name"], "type": v["type"]} for k, v in PERSONAS.items()}
+
+
+def personas_source():
+    """Where the active PERSONAS dict came from. Useful for /api/health debug."""
+    vault = os.getenv("UNCENSORED_VAULT_PATH")
+    if vault and PERSONAS is not _BUILTIN_PERSONAS:
+        return f"vault:{Path(vault).expanduser() / 'candy-ai-clone' / 'personas.json'}"
+    return "builtin"
 
 
 if __name__ == "__main__":
