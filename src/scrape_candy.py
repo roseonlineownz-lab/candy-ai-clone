@@ -10,7 +10,8 @@ async def scrape():
         try:
             from playwright_stealth import stealth
             await stealth(page)
-        except: pass
+        except Exception as e:
+            print(f"[scrape_candy] stealth disabled: {e}")
         
         print("🚀 Navigeren naar Candy.ai Live-sectie...")
         await page.goto("https://candy.ai/ai-girlfriend/olivia-carter/live-actions")
