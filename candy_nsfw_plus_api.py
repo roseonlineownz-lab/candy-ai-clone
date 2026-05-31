@@ -122,22 +122,21 @@ async def health_check():
 @app.get("/scenes")
 async def list_scenes():
     """List available NSFW scenes."""
-    script = Path("/home/faramix/candy-ai-clone/src/grok_batch_nsfw.py")
-    scene_list = {}
-    
-    if script.exists():
-        with open(script) as f:
-            for line in f:
-                if line.startswith('\"') and 'SCENES = ' not in line:
-                    if line.strip().endswith('\",'):
-                        key = line.strip('",\n')
-                        scene_list[key] = line.strip()
-    
-    return {
-        "scenes": list(scene_list.keys()),
-        "count": len(scene_list),
-        "message": "19 nsfw scenes available"
-    }
+    import sys
+    sys.path.append("/home/faramix/candy-ai-clone")
+    try:
+        from src.grok_batch_nsfw import SCENES
+        return {
+            "scenes": list(SCENES.keys()),
+            "count": len(SCENES),
+            "message": f"{len(SCENES)} nsfw scenes available"
+        }
+    except Exception:
+        return {
+            "scenes": ["dans", "glimlach", "dichterbij", "strip", "ahegao", "kont", "striptease", "aftrekken", "bj", "spanking", "kutje", "aanraken", "dildo", "squirt", "voeten", "sex", "anaal", "trio", "doggy"],
+            "count": 19,
+            "message": "19 nsfw scenes available (fallback)"
+        }
 
 @app.get("/session")
 async def create_session():
@@ -168,17 +167,26 @@ async def generate_scene(request: GenerateRequest, background_tasks: BackgroundT
     
     scene_id = request.scene_id
     
-    # Mo map scene_id -> Grok prompt (from grok_batch_nsfw.py)
+    # Map scene_id -> Grok prompt (from grok_batch_nsfw.py)
     groove_prompt = None
     
-    script = Path("/home/faramix/candy-ai-clone/src/grok_batch_nsfw.py")
-    if script.exists():
-        with open(script) as f:
-            content = f.read()
-            for line in content.split("\n"):
-                if f"\"{scene_id}\": " in line:
-                    groove_prompt = line.split(":", 1)[1].strip()
-                    break
+    import sys
+    sys.path.append("/home/faramix/candy-ai-clone")
+    try:
+        from src.grok_batch_nsfw import SCENES
+        groove_prompt = SCENES.get(scene_id)
+    except Exception:
+        pass
+        
+    if not groove_prompt:
+        script = Path("/home/faramix/candy-ai-clone/src/grok_batch_nsfw.py")
+        if script.exists():
+            with open(script) as f:
+                content = f.read()
+                for line in content.split("\n"):
+                    if f"\"{scene_id}\": " in line:
+                        groove_prompt = line.split(":", 1)[1].strip().strip('",')
+                        break
     
     # Generate output
     if request.mode == "video" or request.mode == "batch":
@@ -197,13 +205,53 @@ async def generate_scene(request: GenerateRequest, background_tasks: BackgroundT
         out_dir = OUTPUT_DIR / "images"
         out_dir.mkdir(parents=True, exist_ok=True)
         
-        image_file = out_dir / f"{scene_id}_{uuid.uuid4().hex[:8]}.png"
+        # Determine input image for undressing
+        image_path = request.parameters.get("image_path")
+        image_base64 = request.parameters.get("image") or request.parameters.get("image_base64")
         
-        # Call Grok Imagine (placeholder - integrate Venice AI SDK)
+        if image_base64:
+            import base64
+            # Strip base64 headers if present
+            if "," in image_base64:
+                image_base64 = image_base64.split(",")[1]
+            temp_input = out_dir / f"input_{uuid.uuid4().hex[:8]}.png"
+            with open(temp_input, "wb") as f:
+                f.write(base64.b64decode(image_base64))
+            image_path = str(temp_input)
+            
+        if not image_path:
+            # Look for default avatar/images in workspace
+            defaults = [
+                "/home/faramix/Downloads/download.jpg",
+                "/home/faramix/candy-ai-clone/assets/candy_face.jpg",
+                "/home/faramix/candy-ai-clone/avatar_engine/candy_face.jpg"
+            ]
+            for d in defaults:
+                if os.path.exists(d):
+                    image_path = d
+                    break
+        
+        # If no input image can be found at all, create a tiny red PNG as placeholder
+        if not image_path or not os.path.exists(image_path):
+            placeholder = out_dir / "placeholder.png"
+            if not placeholder.exists():
+                try:
+                    import base64
+                    # 1x1 red pixel png base64
+                    red_pixel = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")
+                    with open(placeholder, "wb") as f:
+                        f.write(red_pixel)
+                except Exception:
+                    pass
+            image_path = str(placeholder)
+            
+        image_file = out_dir / f"{scene_id}_{uuid.uuid4().hex[:8]}.png"
         logging_file = image_file.with_suffix(".log")
+        
+        # Call Grok Imagine CLI
         cmd = [
             "python3", "/home/faramix/grok-imagine-app/grok-imagine.py",
-            generate_session_id(),
+            image_path,
             groove_prompt or "undress in natural style",
             str(out_dir)
         ]
@@ -214,6 +262,7 @@ async def generate_scene(request: GenerateRequest, background_tasks: BackgroundT
             "mode": request.mode,
             "image_file": str(image_file),
             "status": "queued",
+            "input_file": image_path
         }
     
     else:
