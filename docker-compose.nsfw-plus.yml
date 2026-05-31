@@ -1,0 +1,39 @@
+# Corsari Candy AI NSFW+ - Enhanced
+# Sexy fashion + video + image generation
+
+services:
+  candy-nsfw-plus:
+    image: roseonlineownz-lab/candy-ai-nsfw-plus:latest
+    container_name: candy-nsfw-plus
+    ports:
+      - "9500:8000"
+    environment:
+      - VENICE_API_KEY=${VENICE_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - GROK_API_KEY=${GROK_API_KEY:-}
+      - CUDA_VISIBLE_DEVICES=0
+    volumes:
+      - ./avatar_engine/output:/app/output
+      - ./candy_models:/app/models
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - novamaster-net
+
+  # Optional: Redis for session state (if using multi-agent)
+  redis:
+    image: redis:7-alpine
+    container_name: candy-redis
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+    networks:
+      - novamaster-net
+
+networks:
+  novamaster-net:
+    external: false
