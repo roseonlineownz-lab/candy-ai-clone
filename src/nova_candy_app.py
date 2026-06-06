@@ -67,10 +67,13 @@ async def startup_event():
 async def shutdown_event():
     await close_db()
 
-from config import AVATAR_DIR, VOICE_CACHE_DIR as VOICE_CACHE
+from fastapi.staticfiles import StaticFiles
+from config import AVATAR_DIR, VOICE_CACHE_DIR as VOICE_CACHE, OUTPUT_DIR
 from db import get_db, close_db, ensure_session, add_message, get_history, clear_session
 
 VOICE_CACHE.mkdir(parents=True, exist_ok=True)
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/output", StaticFiles(directory=str(OUTPUT_DIR)), name="output")
 
 # ======================================================================
 # Shared
