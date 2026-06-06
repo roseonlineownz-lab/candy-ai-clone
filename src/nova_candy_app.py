@@ -159,7 +159,8 @@ async def api_chat_nsfw(request: Request):
         adaptive_scheduler.track_user_activity(user_id, {
             'media_requested': media_triggered,
             'intensity_requested': 'medium',
-            'persona_id': key
+            'persona_id': key,
+            'message': message
         })
         
         # Track context if mood is mentioned
@@ -458,6 +459,21 @@ async def deliver_content(request: Request):
         return {"status": "success", "message": "Content marked as delivered"}
     except Exception as e:
         log.error(f"Error in deliver_content route: {e}")
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+@app.get("/api/user/accuracy/{user_id}")
+async def get_prediction_accuracy(user_id: str):
+    """
+    Get voorspellingsaccuratie voor gebruiker
+    """
+    try:
+        accuracy = adaptive_scheduler.get_prediction_accuracy(user_id)
+        return {
+            "user_id": user_id,
+            "accuracy": accuracy
+        }
+    except Exception as e:
+        log.error(f"Error in get_prediction_accuracy route: {e}")
         return JSONResponse({"error": str(e)}, status_code=500)
 
 

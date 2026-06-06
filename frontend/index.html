@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Candy AI - Premium AI Companion</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Poppins:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./index.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+      <div class="logo">
+        <span class="logo-accent">Candy</span><span class="logo-white">.ai</span>
+      </div>
+      <nav class="nav-menu">
+        <button class="nav-item active" id="btn-tab-explore" onclick="switchTab('explore')">
+          <span class="icon">✨</span> Explore
+        </button>
+        <button class="nav-item" id="btn-tab-chat" onclick="switchTab('chat')">
+          <span class="icon">💬</span> Chat
+        </button>
+        <button class="nav-item" id="btn-tab-undress" onclick="switchTab('undress')">
+          <span class="icon">👗</span> AI Undress
+        </button>
+      </nav>
+      <div class="profile-section">
+        <div class="pro-badge">PRO MEMBERSHIP</div>
+        <div class="coins-display">🪙 <span id="coinsCount">12,967</span></div>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+      <!-- Explore View -->
+      <section id="exploreView" class="view-section active">
+        <div class="view-header">
+          <h1>Find your perfect <span>AI Companion</span></h1>
+          <p>Chat, roleplay, and create custom scenes with premium uncensored AI personas.</p>
+        </div>
+        <div class="category-filters">
+          <button class="filter-chip active">All</button>
+          <button class="filter-chip">Girls</button>
+          <button class="filter-chip">Boys</button>
+          <button class="filter-chip">Anime</button>
+        </div>
+        <div class="character-grid" id="characterGrid">
+          <!-- Character cards will be injected dynamically -->
+          <div class="loading-state">
+            <div class="pulsing-circle"></div>
+            Loading companions...
+          </div>
+        </div>
+      </section>
+
+      <!-- Chat View -->
+      <section id="chatView" class="view-section">
+        <div class="chat-container">
+          <!-- Left side: Conversation -->
+          <div class="chat-main">
+            <div class="chat-header" id="chatHeader" style="display: none;">
+              <div class="chat-header-info">
+                <img id="chatHeaderAvatar" class="avatar" src="" alt="" />
+                <div>
+                  <h3 id="chatHeaderName">Companion</h3>
+                  <span class="status-indicator">Online</span>
+                </div>
+              </div>
+              <div class="chat-header-actions">
+                <button class="icon-btn" id="voiceToggleBtn" onclick="toggleVoice()" title="Toggle Voice/Audio">
+                  🔊
+                </button>
+                <button class="icon-btn" id="prefToggleBtn" onclick="showPreferencesDialog()" title="Preferences">
+                  ⚙️
+                </button>
+                <button class="icon-btn" onclick="clearActiveHistory()" title="Clear Conversation">
+                  🗑️
+                </button>
+              </div>
+            </div>
+            
+            <div class="chat-messages" id="chatMessages">
+              <div class="empty-chat-state">
+                <span class="emoji">💬</span>
+                <h3>Start a conversation</h3>
+                <p>Select a companion from the Explore tab to start chatting in real-time.</p>
+                <button class="btn btn-primary" onclick="switchTab('explore')">Browse Companions</button>
+              </div>
+            </div>
+
+            <div class="chat-input-container" id="chatInputContainer" style="display: none;">
+              <div class="chat-input-wrapper">
+                <input type="text" id="chatMsgInput" placeholder="Type a message..." autocomplete="off" />
+                <button class="send-btn" onclick="sendChatMessage()">
+                  <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right side: Persona Detail Sidebar -->
+          <div class="chat-sidebar" id="chatSidebar" style="display: none;">
+            <div class="sidebar-avatar-container">
+              <img id="chatSidebarAvatar" class="sidebar-avatar" src="" alt="" />
+            </div>
+            <h2 id="chatSidebarName">Companion Name</h2>
+            <div class="personality-tag" id="chatSidebarTag">Flemish</div>
+            <p class="persona-description" id="chatSidebarDesc">Uncensored companion.</p>
+            <div class="quick-action-box">
+              <h4>Direct NSFW Tools</h4>
+              <p>Undress this companion using Venice AI integration.</p>
+              <button class="btn btn-primary btn-block" id="undressQuickBtn" onclick="jumpToUndress()">
+                👗 Undress Companion
+              </button>
+              <button class="btn btn-block" style="margin-top: 10px; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--border-color); color: #fff;" onclick="showPreferencesDialog()">
+                ⚙️ Adjust Preferences
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- AI Undress View -->
+      <section id="undressView" class="view-section">
+        <div class="undress-layout">
+          <!-- Text column -->
+          <div class="undress-info">
+            <div class="badge-promo">▶ VIDEO MODE UPDATE!</div>
+            <h1>Undress AI App - <span>Safe Online</span> Generator</h1>
+            <p>Select a photo, choose an AI undressing mode, and generate high-fidelity deepnude outputs in seconds.</p>
+            
+            <!-- Mode selection -->
+            <div class="undress-modes-container">
+              <h3>Select Mode</h3>
+              <div class="undress-modes-grid">
+                <div class="mode-card active" onclick="selectUndressMode(this, 'undress')">
+                  <span class="emoji">👗</span> Undress
+                </div>
+                <div class="mode-card" onclick="selectUndressMode(this, 'tits')">
+                  <span class="emoji">🍒</span> Boob Tits
+                </div>
+                <div class="mode-card" onclick="selectUndressMode(this, 'pussy')">
+                  <span class="emoji">👀</span> Show Pussy
+                </div>
+                <div class="mode-card" onclick="selectUndressMode(this, 'ahegao')">
+                  <span class="emoji">😈</span> Ahegao
+                </div>
+                <div class="mode-card" onclick="selectUndressMode(this, 'blowjob')">
+                  <span class="emoji">💋</span> Blowjob
+                </div>
+                <div class="mode-card" onclick="selectUndressMode(this, 'doggy')">
+                  <span class="emoji">🐕</span> Doggy
+                </div>
+                <div class="mode-card" onclick="selectUndressMode(this, 'cumshot')">
+                  <span class="emoji">💦</span> Cumshot
+                </div>
+                <div class="mode-card" onclick="selectUndressMode(this, 'masturbation')">
+                  <span class="emoji">🤲</span> Masturbation
+                </div>
+              </div>
+            </div>
+
+            <button class="btn btn-primary btn-large btn-glow" onclick="executeUndress()">
+              Generate Output
+            </button>
+          </div>
+
+          <!-- Visual Phone Mockup Column -->
+          <div class="undress-mockup-wrapper">
+            <div class="phone-mockup">
+              <div class="phone-notch"></div>
+              <div class="phone-screen">
+                <div class="phone-header">
+                  <span class="badge-pro">PRO</span>
+                  <span class="coins-indicator">🪙 12,967</span>
+                </div>
+                <div class="phone-canvas" onclick="triggerUndressUpload()">
+                  <div class="canvas-placeholder" id="undressPlaceholder">
+                    <svg width="64" height="64" viewBox="0 0 24 24" fill="#444"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+                    <span>Click to upload image</span>
+                  </div>
+                  <img id="undressPreview" class="canvas-image" src="" alt="" style="display: none;" />
+                  
+                  <div class="canvas-overlay" id="undressOverlay" style="display: none;">
+                    <div class="loader-circle"></div>
+                    <span id="undressStatus">Undressing...</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <input type="file" id="undressFileInput" accept="image/*" style="display: none;" onchange="handleUndressFile(event)" />
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="./main.js" type="module"></script>
+</body>
+</html>

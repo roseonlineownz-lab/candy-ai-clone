@@ -32,9 +32,14 @@ class NSFWPersonalizationEngine:
         self.emotional_responses = {}
         self.temporal_patterns = {}
         
+    def _get_conn(self):
+        conn = sqlite3.connect(self.db_path, timeout=30.0)
+        conn.execute("PRAGMA journal_mode=WAL;")
+        return conn
+
     def init_database(self):
         """Initialiseer SQLite database voor user data"""
-        conn = sqlite3.connect(self.db_path)
+        conn = self._get_conn()
         cursor = conn.cursor()
         
         # User interactions table
@@ -90,7 +95,7 @@ class NSFWPersonalizationEngine:
     
     def track_interaction(self, user_id: str, session_id: str, interaction_data: Dict[str, Any]):
         """Track gebruikersinteractie voor learning"""
-        conn = sqlite3.connect(self.db_path)
+        conn = self._get_conn()
         cursor = conn.cursor()
         
         # Insert interaction
@@ -164,7 +169,7 @@ class NSFWPersonalizationEngine:
     def update_preference(self, user_id: str, preference_type: str, 
                          preference_key: str, value: float):
         """Update specifieke preference met learning"""
-        conn = sqlite3.connect(self.db_path)
+        conn = self._get_conn()
         cursor = conn.cursor()
         
         # Check if preference exists
@@ -247,7 +252,7 @@ class NSFWPersonalizationEngine:
     
     def get_user_preferences(self, user_id: str) -> Dict[str, Dict[str, float]]:
         """Get alle gebruikersvoorkeuren"""
-        conn = sqlite3.connect(self.db_path)
+        conn = self._get_conn()
         cursor = conn.cursor()
         
         cursor.execute('''
@@ -269,7 +274,7 @@ class NSFWPersonalizationEngine:
     
     def get_user_boundaries(self, user_id: str) -> Dict[str, str]:
         """Get gebruikersboundaries"""
-        conn = sqlite3.connect(self.db_path)
+        conn = self._get_conn()
         cursor = conn.cursor()
         
         cursor.execute('''
@@ -336,7 +341,7 @@ class NSFWPersonalizationEngine:
     
     def establish_boundaries(self, user_id: str, boundary_data: Dict[str, str]):
         """Stel gebruikersboundaries in"""
-        conn = sqlite3.connect(self.db_path)
+        conn = self._get_conn()
         cursor = conn.cursor()
         
         for boundary_key, boundary_level in boundary_data.items():
@@ -386,7 +391,7 @@ class NSFWPersonalizationEngine:
         boundaries = self.get_user_boundaries(user_id)
         
         # Count interactions
-        conn = sqlite3.connect(self.db_path)
+        conn = self._get_conn()
         cursor = conn.cursor()
         
         cursor.execute('''
