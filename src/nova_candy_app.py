@@ -33,13 +33,41 @@ from avatar_engine.nova_roleplay_brain import (
 from core.model_router import route_chat, set_active_model, list_models, get_active_model, MODELS
 
 app = FastAPI(title="NovaMaster Chat")
+
+from src.multimodal_engine import SuperGrokMultiModalEngine
+from src.adaptive_scheduler import AdaptiveContentScheduler
+import asyncio
+
+multimodal_engine = SuperGrokMultiModalEngine()
+adaptive_scheduler = AdaptiveContentScheduler()
+
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-AVATAR_DIR = Path("/home/faramix/avatar_engine/identities")
-VOICE_CACHE = Path("/tmp/nova_voice_cache")
-VOICE_CACHE.mkdir(exist_ok=True)
+async def run_prediction_scheduler():
+    """
+    Run prediction scheduler in background every hour.
+    """
+    await asyncio.sleep(10) # Wait for startup to settle
+    while True:
+        try:
+            await adaptive_scheduler.run_prediction_cycle()
+        except Exception as e:
+            log.error(f"Error in run_prediction_cycle background task: {e}")
+        await asyncio.sleep(3600)
 
-_sessions: dict[str, list] = {}
+@app.on_event("startup")
+async def startup_event():
+    await get_db()
+    asyncio.create_task(run_prediction_scheduler())
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    await close_db()
+
+from config import AVATAR_DIR, VOICE_CACHE_DIR as VOICE_CACHE
+from db import get_db, close_db, ensure_session, add_message, get_history, clear_session
+
+VOICE_CACHE.mkdir(parents=True, exist_ok=True)
 
 # ======================================================================
 # Shared
@@ -74,11 +102,11 @@ async def api_chat_normal(request: Request):
     session_id = data.get("session_id", "normal")
 
     if not message: return JSONResponse({"error": "empty"}, status_code=400)
-    if session_id not in _sessions: _sessions[session_id] = []
-    _sessions[session_id].append({"role": "user", "text": message})
+    await ensure_session(session_id, "normal")
+    await add_message(session_id, "user", message)
 
     response_text, model_used = route_chat(message, force_model=model)
-    _sessions[session_id].append({"role": "ai", "text": response_text, "model": model_used})
+    await add_message(session_id, "ai", response_text, model=model_used)
 
     return {"response": response_text, "model": model_used, "session_id": session_id}
 
@@ -102,33 +130,337 @@ async def api_chat_nsfw(request: Request):
     data = await request.json()
     message = data.get("message", "")
     session_id = data.get("session_id", "nsfw")
+    user_id = data.get("user_id", "anonymous")
 
     if not message: return JSONResponse({"error": "empty"}, status_code=400)
     key, persona = get_active_persona()
-    if session_id not in _sessions: _sessions[session_id] = []
-    _sessions[session_id].append({"role": "user", "text": message})
+    await ensure_session(session_id, "nsfw")
+    await add_message(session_id, "user", message, persona=persona['name'])
 
-    full_prompt = f"{persona['system_prompt']}\n\nUser: {message}\n\n{persona['name']}:"
-    response_text, model_used = route_chat(full_prompt, voice_uncensored=True)
-    
-    response_text = response_text.strip()
-    if response_text.startswith(f"{persona['name']}:"):
-        response_text = response_text[len(persona['name']) + 1:].strip()
-    
-    _sessions[session_id].append({"role": "ai", "text": response_text, "persona": persona['name']})
+    # Check boundaries first for all NSFW chats
+    boundary_check = multimodal_engine.personalization_engine.check_boundary_violation(user_id, message)
+    if not boundary_check["safe"]:
+        response_text = "Ik voel me hier niet comfortabel bij. Laten we over iets anders praten."
+        await add_message(session_id, "ai", response_text, persona=persona['name'])
+        return {
+            "response": response_text,
+            "persona": persona['name'],
+            "session_id": session_id,
+            "status": "boundary_violation",
+            "violations": boundary_check["violations"]
+        }
 
-    result = {"response": response_text, "persona": persona['name'], "session_id": session_id}
+    # Check for media triggers
+    MEDIA_TRIGGERS = ["show me", "picture", "photo", "video", "let me see", "visualize", "send pic", "send photo", "afbeelding", "filmpje"]
+    media_triggered = any(trigger in message.lower() for trigger in MEDIA_TRIGGERS)
+
+    # Track activity for scheduling
     try:
-        voice_path = await _generate_voice(response_text, persona.get("voice", "nl-BE-DenaNeural"))
-        if voice_path:
-            result["audio_base64"] = base64.b64encode(voice_path.read_bytes()).decode()
-    except Exception: pass
-    return result
+        adaptive_scheduler.track_user_activity(user_id, {
+            'media_requested': media_triggered,
+            'intensity_requested': 'medium',
+            'persona_id': key
+        })
+        
+        # Track context if mood is mentioned
+        if any(w in message.lower() for w in ['mood', 'gevoel', 'horny', 'excited', 'sensual', 'geil', 'opgewonden', 'zin in']):
+            adaptive_scheduler.track_user_context(user_id, 'mood', message.lower(), 0.7)
+    except Exception as e:
+        log.error(f"Error tracking user activity/context: {e}")
+
+    if media_triggered:
+        # Determine scenario category
+        scenario = "intimate pose"
+        scene_id = "strip" # default
+        
+        if "tits" in message.lower() or "boob" in message.lower() or "borst" in message.lower():
+            scene_id = "spanking"
+            scenario = "showing boobs and chest"
+        elif "pussy" in message.lower() or "vagina" in message.lower() or "kutje" in message.lower() or "spleet" in message.lower():
+            scene_id = "kutje"
+            scenario = "showing vagina intimately"
+        elif "ahegao" in message.lower() or "face" in message.lower() or "gezicht" in message.lower():
+            scene_id = "ahegao"
+            scenario = "sensual facial expression"
+        elif "blowjob" in message.lower() or "bj" in message.lower() or "zuigen" in message.lower() or "aftrekken" in message.lower():
+            scene_id = "bj"
+            scenario = "giving a blowjob"
+        elif "doggy" in message.lower() or "back" in message.lower() or "ass" in message.lower() or "kont" in message.lower():
+            scene_id = "doggy"
+            scenario = "posing doggy style"
+        elif "cum" in message.lower() or "squirt" in message.lower() or "spuiten" in message.lower():
+            scene_id = "squirt"
+            scenario = "squirting in pleasure"
+        elif "masturbat" in message.lower() or "stroke" in message.lower() or "jerk" in message.lower() or "vingeren" in message.lower():
+            scene_id = "aftrekken"
+            scenario = "masturbating sensually"
+
+        visual_type = "video" if any(x in message.lower() for x in ["video", "clip", "filmpje"]) else "image"
+        
+        experience = await multimodal_engine.create_personalized_experience({
+            "user_id": user_id,
+            "session_id": session_id,
+            "persona": {
+                "name": persona["name"],
+                "system_prompt": persona["system_prompt"],
+                "voice": persona.get("voice", "nl-BE-DenaNeural"),
+                "avatar": persona.get("avatar"),
+                "key": key
+            },
+            "message": message,
+            "context": {
+                "scenario": scenario,
+                "scene_id": scene_id
+            },
+            "media_requested": True,
+            "visual_type": visual_type
+        })
+        
+        if experience.get("status") == "completed":
+            await add_message(session_id, "ai", experience["text"], persona=persona['name'])
+            result = {
+                "response": experience["text"],
+                "persona": persona['name'],
+                "session_id": session_id,
+                "audio_base64": experience["audio_base64"],
+                "type": "multimodal",
+                "visuals": experience["visuals"]
+            }
+            try:
+                ready = adaptive_scheduler.get_ready_content(user_id)
+                if ready:
+                    result["ready_content"] = ready
+            except Exception: pass
+            return result
+        else:
+            log.error("Multimodal generation failed: %s", experience.get("error"))
+            # Fallback to standard chat response if multimodal fails
+            response_text, model_used = route_chat(
+                f"{persona['system_prompt']}\n\nUser: {message}\n\n{persona['name']}:",
+                voice_uncensored=True
+            )
+            response_text = response_text.strip()
+            if response_text.startswith(f"{persona['name']}:"):
+                response_text = response_text[len(persona['name']) + 1:].strip()
+            await add_message(session_id, "ai", response_text, persona=persona['name'], model=model_used)
+            
+            result = {"response": response_text, "persona": persona['name'], "session_id": session_id}
+            try:
+                voice_path = await _generate_voice(response_text, persona.get("voice", "nl-BE-DenaNeural"))
+                if voice_path:
+                    result["audio_base64"] = base64.b64encode(voice_path.read_bytes()).decode()
+            except Exception: pass
+            
+            try:
+                ready = adaptive_scheduler.get_ready_content(user_id)
+                if ready:
+                    result["ready_content"] = ready
+            except Exception: pass
+            return result
+    else:
+        # Regular chat path
+        # Retrieve personalized scene config to adapt intensity and emotional tone
+        scene_config = multimodal_engine.personalization_engine.generate_personalized_scene(user_id, persona)
+        intensity = scene_config.get("intensity", "medium")
+        primary_kinks = scene_config.get("primary_kinks", [])
+        emotional_tone = scene_config.get("emotional_tone", "affection")
+        
+        # Build prompt using personalizations
+        kink_str = f" Preferred kinks: {', '.join(primary_kinks)}." if primary_kinks else ""
+        full_prompt = (
+            f"{persona['system_prompt']}\n\n"
+            f"[Mood/Tone: {emotional_tone}, Intensity: {intensity}.{kink_str}]\n"
+            f"User: {message}\n\n"
+            f"{persona['name']}:"
+        )
+        
+        response_text, model_used = route_chat(full_prompt, voice_uncensored=True)
+        
+        response_text = response_text.strip()
+        if response_text.startswith(f"{persona['name']}:"):
+            response_text = response_text[len(persona['name']) + 1:].strip()
+        
+        await add_message(session_id, "ai", response_text, persona=persona['name'], model=model_used)
+
+        # Track the interaction for standard chats too!
+        multimodal_engine.personalization_engine.track_interaction(
+            user_id,
+            session_id,
+            {
+                "persona_id": key,
+                "message": message,
+                "response": response_text,
+                "media_requested": False,
+                "media_type": None,
+                "intensity_requested": intensity
+            }
+        )
+
+        result = {"response": response_text, "persona": persona['name'], "session_id": session_id}
+        try:
+            voice_path = await _generate_voice(response_text, persona.get("voice", "nl-BE-DenaNeural"))
+            if voice_path:
+                result["audio_base64"] = base64.b64encode(voice_path.read_bytes()).decode()
+        except Exception: pass
+        
+        try:
+            ready = adaptive_scheduler.get_ready_content(user_id)
+            if ready:
+                result["ready_content"] = ready
+        except Exception: pass
+        return result
 
 @app.post("/api/clear/{session_id}")
-def api_clear(session_id: str):
-    _sessions.pop(session_id, None)
+async def api_clear(session_id: str):
+    await clear_session(session_id)
     return {"status": "cleared"}
+
+@app.get("/api/history/{session_id}")
+async def api_history(session_id: str):
+    history = await get_history(session_id)
+    return {"history": history}
+
+# ======================================================================
+# Personalization & User Learning API
+# ======================================================================
+
+@app.post("/api/user/preferences")
+async def set_user_preferences(request: Request):
+    """
+    Stel gebruikersvoorkeuren in
+    """
+    try:
+        data = await request.json()
+        user_id = data.get("user_id", "anonymous")
+        
+        # Convert preferences to boundary format
+        boundary_data = {}
+        for pref_key, pref_value in data.items():
+            if pref_key.startswith("boundary."):
+                boundary_key = pref_key.replace("boundary.", "")
+                boundary_data[boundary_key] = pref_value
+                
+        # Store preferences directly using update_preference
+        intensity_val = data.get("intensity")
+        if intensity_val is not None:
+            multimodal_engine.personalization_engine.update_preference(
+                user_id, 'intensity', 'preferred_level', float(intensity_val)
+            )
+            
+        visual_pref = data.get("visual_preference")
+        if visual_pref is not None:
+            multimodal_engine.personalization_engine.update_preference(
+                user_id, 'media', 'visual_preference', float(visual_pref)
+            )
+            
+        # Establish boundaries
+        if boundary_data:
+            multimodal_engine.personalization_engine.establish_boundaries(user_id, boundary_data)
+            
+        return {"status": "success", "message": "Preferences updated"}
+    except Exception as e:
+        log.error(f"Error in set_user_preferences: {e}")
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+@app.get("/api/user/preferences/{user_id}")
+async def get_user_preferences(user_id: str):
+    """
+    Get gebruikersvoorkeuren
+    """
+    try:
+        preferences = multimodal_engine.personalization_engine.get_user_preferences(user_id)
+        boundaries = multimodal_engine.personalization_engine.get_user_boundaries(user_id)
+        return {
+            "preferences": preferences,
+            "boundaries": boundaries
+        }
+    except Exception as e:
+        log.error(f"Error in get_user_preferences: {e}")
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+@app.get("/api/user/learning/{user_id}")
+async def get_user_learning_summary(user_id: str):
+    """
+    Get samenvatting van geleerde data
+    """
+    try:
+        summary = multimodal_engine.personalization_engine.get_learning_summary(user_id)
+        return summary
+    except Exception as e:
+        log.error(f"Error in get_user_learning_summary: {e}")
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+# ======================================================================
+# Adaptive Content Scheduling & Predictions
+# ======================================================================
+
+@app.post("/api/user/context")
+async def track_user_context(request: Request):
+    """
+    Track gebruikerscontext voor voorspellingen
+    """
+    try:
+        data = await request.json()
+        user_id = data.get("user_id", "anonymous")
+        context_type = data.get("context_type")
+        context_value = data.get("context_value")
+        confidence = float(data.get("confidence", 0.5))
+        
+        adaptive_scheduler.track_user_context(user_id, context_type, context_value, confidence)
+        return {"status": "success", "message": "Context tracked"}
+    except Exception as e:
+        log.error(f"Error in track_user_context route: {e}")
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+@app.get("/api/user/predictions/{user_id}")
+async def get_user_predictions(user_id: str, hours_ahead: int = 1):
+    """
+    Get voorspellingen voor gebruiker
+    """
+    try:
+        predictions = adaptive_scheduler.predict_user_needs(user_id, hours_ahead)
+        return {
+            "user_id": user_id,
+            "hours_ahead": hours_ahead,
+            "predictions": predictions
+        }
+    except Exception as e:
+        log.error(f"Error in get_user_predictions route: {e}")
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+@app.get("/api/user/ready_content/{user_id}")
+async def get_ready_content(user_id: str):
+    """
+    Get content die klaar is voor delivery
+    """
+    try:
+        ready_content = adaptive_scheduler.get_ready_content(user_id)
+        return {
+            "user_id": user_id,
+            "ready_content": ready_content
+        }
+    except Exception as e:
+        log.error(f"Error in get_ready_content route: {e}")
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+@app.post("/api/content/deliver")
+async def deliver_content(request: Request):
+    """
+    Markeer content als geleverd
+    """
+    try:
+        data = await request.json()
+        content_id = data.get("content_id")
+        if not content_id:
+            return JSONResponse({"error": "Missing content_id"}, status_code=400)
+            
+        adaptive_scheduler.mark_content_delivered(content_id)
+        return {"status": "success", "message": "Content marked as delivered"}
+    except Exception as e:
+        log.error(f"Error in deliver_content route: {e}")
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
 
 async def _generate_voice(text: str, voice: str):
     try:
@@ -273,7 +605,43 @@ const API = 'http://localhost:8095';
 let mode = 'normal';
 let voiceOn = false;
 let audio = null;
-const SID = { normal: 'n_'+crypto.randomUUID(), nsfw: 'x_'+crypto.randomUUID() };
+const getOrSetSid = (key, prefix) => {
+    let sid = localStorage.getItem(key);
+    if (!sid) {
+        sid = prefix + '_' + crypto.randomUUID();
+        localStorage.setItem(key, sid);
+    }
+    return sid;
+};
+const SID = {
+    normal: getOrSetSid('nova_sid_normal', 'n'),
+    nsfw: getOrSetSid('nova_sid_nsfw', 'x')
+};
+
+let activePersonaKey = 'nova';
+
+function getSessionId() {
+    return mode === 'normal' ? SID.normal : ('x_' + activePersonaKey);
+}
+
+async function loadHistory() {
+    try {
+        const r = await fetch('/api/history/' + getSessionId());
+        const d = await r.json();
+        const m = document.getElementById('messages');
+        m.innerHTML = '';
+        if (d.history && d.history.length > 0) {
+            d.history.forEach(msg => {
+                addMsg(msg.role === 'user' ? 'user' : 'ai', msg.text, mode==='normal'?(msg.model||'AI'):(msg.persona||'Nova'));
+            });
+        } else {
+            if (mode==='normal') { addMsg('ai', 'Welkom terug. Hoe kan ik helpen?', 'System'); }
+            else { addMsg('ai', 'Hallo! Ik ben klaar voor ons rollenspel.', 'System'); }
+        }
+    } catch(e) {
+        if (mode==='normal') { addMsg('ai', 'Welkom terug. Hoe kan ik helpen?', 'System'); }
+    }
+}
 
 function switchMode(m) {
     mode = m;
@@ -293,8 +661,8 @@ function switchMode(m) {
         document.getElementById('chatCol').style.display = 'flex';
         document.getElementById('leadsCol').style.display = 'none';
         document.getElementById('messages').innerHTML = '';
-        if (m==='normal') { setHeader('JARVIS', null, '&#129302;'); addMsg('ai', 'Welkom terug. Hoe kan ik helpen?', 'System'); }
-        else loadPersonas();
+        if (m==='normal') { setHeader('JARVIS', null, '&#129302;'); loadHistory(); }
+        else { loadPersonas().then(() => loadHistory()); }
     }
 }
 
@@ -374,7 +742,7 @@ async function send() {
     const txt = inp.value.trim(); if(!txt) return;
     inp.value=''; addMsg('user', txt);
     const endpoint = mode==='normal'?'/api/chat/normal':'/api/chat/nsfw';
-    const body = { message:txt, session_id:SID[mode] };
+    const body = { message:txt, session_id:getSessionId() };
     if (mode==='normal') body.model = document.getElementById('modelSelect').value;
     try {
         const r = await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
@@ -415,9 +783,16 @@ async function loadPersonas() {
     d.personas.forEach(p => {
         const c = document.createElement('div'); c.className = 'persona-card'+(p.active?' active':'');
         c.innerHTML = `<div class="p-avatar">${p.avatar?`<img src="${p.avatar}" style="width:100%;height:100%;border-radius:50%;"/>`:'&#128156;'}</div><div class="p-info"><h3>${p.name}</h3></div>`;
-        c.onclick = () => { fetch('/api/switch',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({persona:p.key})}).then(()=>loadPersonas()); };
+        c.onclick = () => { 
+            fetch('/api/switch',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({persona:p.key})})
+            .then(()=>loadPersonas())
+            .then(()=>loadHistory()); 
+        };
         list.appendChild(c);
-        if (p.active) setHeader(p.name, p.avatar, '&#128156;');
+        if (p.active) {
+            setHeader(p.name, p.avatar, '&#128156;');
+            activePersonaKey = p.key;
+        }
     });
 }
 
