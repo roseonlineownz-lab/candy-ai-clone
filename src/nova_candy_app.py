@@ -34,12 +34,15 @@ from core.model_router import route_chat, set_active_model, list_models, get_act
 
 app = FastAPI(title="NovaMaster Chat")
 
+from typing import Optional, Dict, List, Any
 from src.multimodal_engine import SuperGrokMultiModalEngine
 from src.adaptive_scheduler import AdaptiveContentScheduler
+from src.universal_multimodal_engine import UniversalMultiModalEngine
 import asyncio
 
 multimodal_engine = SuperGrokMultiModalEngine()
 adaptive_scheduler = AdaptiveContentScheduler()
+universal_engine = UniversalMultiModalEngine()
 
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
@@ -474,6 +477,112 @@ async def get_prediction_accuracy(user_id: str):
         }
     except Exception as e:
         log.error(f"Error in get_prediction_accuracy route: {e}")
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+@app.post("/api/content/mode")
+async def set_content_mode_route(request: Request):
+    """
+    Stel content mode in voor gebruiker
+    """
+    try:
+        data = await request.json()
+        user_id = data.get("user_id")
+        mode_name = data.get("mode_name")
+        enabled = data.get("enabled", True)
+        settings = data.get("settings", {})
+        
+        if not user_id or not mode_name:
+            return JSONResponse({"error": "Missing user_id or mode_name"}, status_code=400)
+            
+        result = universal_engine.set_content_mode(user_id, mode_name, enabled, settings)
+        return result
+    except Exception as e:
+        log.error(f"Error in set_content_mode_route: {e}")
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+@app.get("/api/content/modes/{user_id}")
+async def get_content_modes_route(user_id: str):
+    """
+    Get content modes voor gebruiker
+    """
+    try:
+        modes = universal_engine.get_content_mode(user_id)
+        return {
+            "user_id": user_id,
+            "modes": modes
+        }
+    except Exception as e:
+        log.error(f"Error in get_content_modes_route: {e}")
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+@app.post("/api/content/preference")
+async def set_content_preference_route(request: Request):
+    """
+    Stel content voorkeur in voor gebruiker
+    """
+    try:
+        data = await request.json()
+        user_id = data.get("user_id")
+        content_mode = data.get("content_mode")
+        preference_type = data.get("preference_type")
+        preference_key = data.get("preference_key")
+        preference_value = data.get("preference_value")
+        confidence = float(data.get("confidence", 0.5))
+        
+        if not all([user_id, content_mode, preference_type, preference_key, preference_value]):
+            return JSONResponse({"error": "Missing required fields"}, status_code=400)
+            
+        result = universal_engine.set_content_preference(
+            user_id, content_mode, preference_type, preference_key, preference_value, confidence
+        )
+        return result
+    except Exception as e:
+        log.error(f"Error in set_content_preference_route: {e}")
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+@app.get("/api/content/preferences/{user_id}")
+async def get_content_preferences_route(user_id: str, content_mode: Optional[str] = None):
+    """
+    Get content voorkeuren voor gebruiker
+    """
+    try:
+        preferences = universal_engine.get_content_preferences(user_id, content_mode)
+        return {
+            "user_id": user_id,
+            "content_mode": content_mode,
+            "preferences": preferences
+        }
+    except Exception as e:
+        log.error(f"Error in get_content_preferences_route: {e}")
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+@app.post("/api/content/experience")
+async def create_full_experience_route(request: Request):
+    """
+    Creëer volledige multi-modale ervaring
+    """
+    try:
+        data = await request.json()
+        experience = await universal_engine.create_full_experience(data)
+        return experience
+    except Exception as e:
+        log.error(f"Error in create_full_experience_route: {e}")
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+@app.get("/api/content/experiences/{user_id}")
+async def get_user_experiences_route(user_id: str, content_mode: Optional[str] = None, limit: int = 10):
+    """
+    Get gebruikerservaringen
+    """
+    try:
+        experiences = universal_engine.get_user_experiences(user_id, content_mode, limit)
+        return {
+            "user_id": user_id,
+            "content_mode": content_mode,
+            "experiences": experiences
+        }
+    except Exception as e:
+        log.error(f"Error in get_user_experiences_route: {e}")
         return JSONResponse({"error": str(e)}, status_code=500)
 
 
