@@ -33,6 +33,9 @@ SUPERGROK_SCRIPT: Path = Path(os.getenv(
 GROK_IMAGINE_SCRIPT: Path = Path(os.getenv(
     "CANDY_GROK_IMAGINE_SCRIPT", "/home/faramix/grok-imagine-app/grok-imagine.py",
 ))
+VENICE_AUTO_SCRIPT: Path = Path(os.getenv(
+    "CANDY_VENICE_AUTO_SCRIPT", "/home/faramix/nova_venice_auto.py",
+))
 
 # ── default avatar / input images (tried in order) ──────────────────
 DEFAULT_IMAGE_PATHS: list[str] = [

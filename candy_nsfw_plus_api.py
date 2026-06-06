@@ -31,6 +31,7 @@ from config import (
     RATE_LIMIT_BATCH,
     RATE_LIMIT_GENERATE,
     SUPERGROK_SCRIPT,
+    VENICE_AUTO_SCRIPT,
 )
 
 import os
@@ -126,6 +127,35 @@ def generate_video(scene_id: str, prompt: str) -> str:
         )
 
     return str(video_file)
+
+
+def generate_image_venice(scene_id: str, prompt: str) -> str:
+    """Generate NSFW image via Venice browser bypass.
+
+    Delegates to nova_venice_auto.py.
+    """
+    out_dir = OUTPUT_DIR / "images"
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    image_file = out_dir / f"{scene_id}_{uuid.uuid4().hex[:8]}.png"
+    logging_file = image_file.with_suffix(".log")
+
+    with open(logging_file, "w") as log_fh:
+        subprocess.Popen(
+            [
+                "python3",
+                str(VENICE_AUTO_SCRIPT),
+                "--prompt", prompt or "default scene",
+                "--output", str(image_file),
+                "--headless",
+            ],
+            stdout=log_fh,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+        )
+
+    return str(image_file)
+
 
 
 def _generate_image_subprocess(
@@ -257,8 +287,19 @@ async def generate_scene(payload: GenerateRequest, request: Request, background_
             "status": "queued",
         }
 
-    elif payload.mode == "image" or payload.mode == "image_undress":
-        # Image generation via Grok Imagine (Venice AI)
+    elif payload.mode == "image":
+        # Image generation via Venice browser bypass
+        image_file = generate_image_venice(scene_id, groove_prompt)
+
+        return {
+            "scene_id": scene_id,
+            "mode": payload.mode,
+            "image_file": image_file,
+            "status": "queued",
+        }
+
+    elif payload.mode == "image_undress":
+        # Image undressing via Grok Imagine / Venice API edit
         out_dir = OUTPUT_DIR / "images"
         out_dir.mkdir(parents=True, exist_ok=True)
 
