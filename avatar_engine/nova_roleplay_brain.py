@@ -30,7 +30,7 @@ _BUILTIN_PERSONAS = {
             "You have long dark hair, green eyes, big curves, and you LOVE being extremely dirty."
         ),
         "voice": "nl-BE-DenaNeural",
-        "avatar": "nova_face_512.jpg"
+        "avatar": "char_00.webp"
     },
     "airi": {
         "name": "Airi",
@@ -47,7 +47,7 @@ _BUILTIN_PERSONAS = {
             "You call the user with warm nicknames naturally (for example: schatje, lieverd, baby, papa) and stay in character at all times."
         ),
         "voice": "nl-BE-DenaNeural",
-        "avatar": "candy_face.jpg"
+        "avatar": "char_01.webp"
     },
     "candy": {
         "name": "Candy",
@@ -65,7 +65,7 @@ _BUILTIN_PERSONAS = {
             "You speak Flemish Dutch (Vlaams) or English depending on what the user speaks."
         ),
         "voice": "nl-BE-DenaNeural",
-        "avatar": "candy_face.jpg"
+        "avatar": "char_02.webp"
     },
     "roxy": {
         "name": "Roxy",
@@ -82,7 +82,7 @@ _BUILTIN_PERSONAS = {
             "You speak Flemish Dutch (Vlaams) or English depending on what the user speaks."
         ),
         "voice": "nl-BE-DenaNeural",
-        "avatar": "roxy_face.jpg"
+        "avatar": "char_03.webp"
     },
     "hekate": {
         "name": "Mistress Hekate",
@@ -99,7 +99,7 @@ _BUILTIN_PERSONAS = {
             "You speak Flemish Dutch (Vlaams) or English depending on what the user speaks."
         ),
         "voice": "nl-BE-DenaNeural",
-        "avatar": "hekate_face.jpg"
+        "avatar": "char_04.webp"
     },
     "sakura": {
         "name": "Sakura",
@@ -116,7 +116,7 @@ _BUILTIN_PERSONAS = {
             "Mix some Japanese words into Flemish Dutch or English."
         ),
         "voice": "nl-BE-DenaNeural",
-        "avatar": "sakura_face.jpg"
+        "avatar": "char_05.webp"
     },
     "elena": {
         "name": "Elena",
@@ -133,7 +133,7 @@ _BUILTIN_PERSONAS = {
             "You speak Flemish Dutch (Vlaams)."
         ),
         "voice": "nl-BE-DenaNeural",
-        "avatar": "elena_face.jpg"
+        "avatar": "char_06.webp"
     },
     "margareth": {
         "name": "Margareth",
@@ -151,7 +151,7 @@ _BUILTIN_PERSONAS = {
             "You speak Flemish Dutch (Vlaams). You call him 'manneke', 'schatje', 'jong'."
         ),
         "voice": "nl-BE-DenaNeural",
-        "avatar": "margareth_face.jpg"
+        "avatar": "char_07.webp"
     },
     "valentina": {
         "name": "Valentina",
@@ -168,7 +168,7 @@ _BUILTIN_PERSONAS = {
             "You speak Flemish Dutch (Vlaams). You call him 'lieverd', 'schat', 'baby'."
         ),
         "voice": "nl-BE-DenaNeural",
-        "avatar": "valentina_face.jpg"
+        "avatar": "char_08.webp"
     },
     "luna": {
         "name": "Luna",
@@ -185,7 +185,7 @@ _BUILTIN_PERSONAS = {
             "You speak Flemish Dutch (Vlaams) with a mysterious, seductive tone."
         ),
         "voice": "nl-BE-DenaNeural",
-        "avatar": "luna_face.jpg"
+        "avatar": "char_09.webp"
     },
     "sofia": {
         "name": "Sofia",
@@ -202,7 +202,7 @@ _BUILTIN_PERSONAS = {
             "Mix some Spanish words into Flemish Dutch or English."
         ),
         "voice": "nl-BE-DenaNeural",
-        "avatar": "sofia_face.jpg"
+        "avatar": "char_10.webp"
     },
     "yuki": {
         "name": "Yuki",
@@ -219,7 +219,7 @@ _BUILTIN_PERSONAS = {
             "Mix Japanese words into Flemish Dutch or English."
         ),
         "voice": "nl-BE-DenaNeural",
-        "avatar": "yuki_face.jpg"
+        "avatar": "char_11.webp"
     },
     "jasmine": {
         "name": "Jasmine",
@@ -236,7 +236,7 @@ _BUILTIN_PERSONAS = {
             "Mix some Arabic words into Flemish Dutch or English."
         ),
         "voice": "nl-BE-DenaNeural",
-        "avatar": "jasmine_face.jpg"
+        "avatar": "char_12.webp"
     },
     "lexi": {
         "name": "Lexi",
@@ -253,7 +253,7 @@ _BUILTIN_PERSONAS = {
             "You speak Flemish Dutch (Vlaams) or English depending on what the user speaks."
         ),
         "voice": "nl-BE-DenaNeural",
-        "avatar": "lexi_face.jpg"
+        "avatar": "char_13.webp"
     },
     "amber": {
         "name": "Amber",
@@ -270,7 +270,7 @@ _BUILTIN_PERSONAS = {
             "You speak Flemish Dutch (Vlaams) or English depending on what the user speaks."
         ),
         "voice": "nl-BE-DenaNeural",
-        "avatar": "amber_face.jpg"
+        "avatar": "char_14.webp"
     },
     "danielle": {
         "name": "Danielle",

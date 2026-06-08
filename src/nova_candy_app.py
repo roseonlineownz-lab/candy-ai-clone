@@ -31,7 +31,17 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from avatar_engine.nova_roleplay_brain import (
     PERSONAS, get_active_persona, set_active_persona, list_personas,
 )
-from core.model_router import route_chat, set_active_model, list_models, get_active_model, MODELS
+try:
+    from core.model_router import route_chat, set_active_model, list_models, get_active_model, MODELS
+except ImportError:
+    # Fallback stub
+    async def route_chat(message, session_id=None, **kwargs):
+        return {"response": message, "model": "stub"}
+    def set_active_model(model_name): pass
+    def list_models(): return []
+    def get_active_model(): return "stub"
+    MODELS = {}
+
 
 app = FastAPI(title="NovaMaster Chat")
 
