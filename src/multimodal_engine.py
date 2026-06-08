@@ -5,7 +5,11 @@ import asyncio
 import logging
 import httpx
 from pathlib import Path
-import edge_tts
+try:
+    import edge_tts
+except ImportError:
+    edge_tts = None
+
 from config import VOICE_CACHE_DIR, OUTPUT_DIR, NSFW_API_PORT
 from src.personalization_engine import NSFWPersonalizationEngine
 
@@ -101,7 +105,12 @@ class SuperGrokMultiModalEngine:
             prompt = self.build_scene_prompt(persona, context, user_message, intensity)
             
             # route_chat is sync, run in threadpool to prevent blocking FastAPI event loop
-            from core.model_router import route_chat
+            try:
+    from core.model_router import route_chat
+except ImportError:
+    async def route_chat(message, session_id=None, **kwargs):
+        return {"response": message, "model": "stub"}
+
             response_text, model_used = await asyncio.to_thread(
                 route_chat, prompt, None, True  # voice_uncensored=True
             )
