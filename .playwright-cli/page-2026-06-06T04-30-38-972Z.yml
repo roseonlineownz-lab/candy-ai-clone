@@ -1,0 +1,137 @@
+- generic [ref=e2]:
+  - complementary [ref=e3]:
+    - generic [ref=e4]: Candy.ai
+    - navigation [ref=e5]:
+      - button "✨ Explore" [ref=e6] [cursor=pointer]:
+        - generic [ref=e7]: ✨
+        - text: Explore
+      - button "💬 Chat" [ref=e8] [cursor=pointer]:
+        - generic [ref=e9]: 💬
+        - text: Chat
+      - button "👗 AI Undress" [ref=e10] [cursor=pointer]:
+        - generic [ref=e11]: 👗
+        - text: AI Undress
+    - generic [ref=e12]:
+      - generic [ref=e13]: PRO MEMBERSHIP
+      - generic [ref=e14]:
+        - text: 🪙
+        - generic [ref=e15]: 12,967
+  - main [ref=e16]:
+    - generic [ref=e17]:
+      - generic [ref=e18]:
+        - heading "Find your perfect AI Companion" [level=1] [ref=e19]
+        - paragraph [ref=e20]: Chat, roleplay, and create custom scenes with premium uncensored AI personas.
+      - generic [ref=e21]:
+        - button "All" [ref=e22] [cursor=pointer]
+        - button "Girls" [ref=e23] [cursor=pointer]
+        - button "Boys" [ref=e24] [cursor=pointer]
+        - button "Anime" [ref=e25] [cursor=pointer]
+      - generic [ref=e26]:
+        - generic [ref=e27] [cursor=pointer]:
+          - generic [ref=e28]:
+            - img [ref=e29]
+            - generic [ref=e30]:
+              - text: "\" alt=\"Nova\" onerror=\"this.src='https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=400&q=80'\" />"
+              - generic [ref=e31]: girlfriend
+          - generic [ref=e32]:
+            - heading "Nova" [level=3] [ref=e33]
+            - paragraph [ref=e34]: Uncensored companion.
+            - generic [ref=e35]:
+              - generic [ref=e36]: Chat Companion
+              - button "💬" [ref=e37]
+        - generic [ref=e38] [cursor=pointer]:
+          - generic [ref=e39]:
+            - img [ref=e40]
+            - generic [ref=e41]:
+              - text: "\" alt=\"Airi\" onerror=\"this.src='https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=400&q=80'\" />"
+              - generic [ref=e42]: companion
+          - generic [ref=e43]:
+            - heading "Airi" [level=3] [ref=e44]
+            - paragraph [ref=e45]: Uncensored companion.
+            - generic [ref=e46]:
+              - generic [ref=e47]: Chat Companion
+              - button "💬" [ref=e48]
+        - generic [ref=e49] [cursor=pointer]:
+          - generic [ref=e50]:
+            - img [ref=e51]
+            - generic [ref=e52]:
+              - text: "\" alt=\"Candy\" onerror=\"this.src='https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=400&q=80'\" />"
+              - generic [ref=e53]: submissive
+          - generic [ref=e54]:
+            - heading "Candy" [level=3] [ref=e55]
+            - paragraph [ref=e56]: Uncensored companion.
+            - generic [ref=e57]:
+              - generic [ref=e58]: Chat Companion
+              - button "💬" [ref=e59]
+        - generic [ref=e60] [cursor=pointer]:
+          - generic [ref=e61]:
+            - img [ref=e62]
+            - generic [ref=e63]:
+              - text: "\" alt=\"Roxy\" onerror=\"this.src='https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=400&q=80'\" />"
+              - generic [ref=e64]: dominant
+          - generic [ref=e65]:
+            - heading "Roxy" [level=3] [ref=e66]
+            - paragraph [ref=e67]: Uncensored companion.
+            - generic [ref=e68]:
+              - generic [ref=e69]: Chat Companion
+              - button "💬" [ref=e70]
+        - generic [ref=e71] [cursor=pointer]:
+          - generic [ref=e72]:
+            - img [ref=e73]
+            - generic [ref=e74]:
+              - text: "\" alt=\"Mistress Hekate\" onerror=\"this.src='https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=400&q=80'\" />"
+              - generic [ref=e75]: mistress
+          - generic [ref=e76]:
+            - heading "Mistress Hekate" [level=3] [ref=e77]
+            - paragraph [ref=e78]: Uncensored companion.
+            - generic [ref=e79]:
+              - generic [ref=e80]: Chat Companion
+              - button "💬" [ref=e81]
+        - generic [ref=e82] [cursor=pointer]:
+          - generic [ref=e83]:
+            - img [ref=e84]
+            - generic [ref=e85]:
+              - text: "\" alt=\"Sakura\" onerror=\"this.src='https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=400&q=80'\" />"
+              - generic [ref=e86]: anime
+          - generic [ref=e87]:
+            - heading "Sakura" [level=3] [ref=e88]
+            - paragraph [ref=e89]: Uncensored companion.
+            - generic [ref=e90]:
+              - generic [ref=e91]: Chat Companion
+              - button "💬" [ref=e92]
+        - generic [ref=e93] [cursor=pointer]:
+          - generic [ref=e94]:
+            - img [ref=e95]
+            - generic [ref=e96]:
+              - text: "\" alt=\"Elena\" onerror=\"this.src='https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=400&q=80'\" />"
+              - generic [ref=e97]: mature
+          - generic [ref=e98]:
+            - heading "Elena" [level=3] [ref=e99]
+            - paragraph [ref=e100]: Uncensored companion.
+            - generic [ref=e101]:
+              - generic [ref=e102]: Chat Companion
+              - button "💬" [ref=e103]
+        - generic [ref=e104] [cursor=pointer]:
+          - generic [ref=e105]:
+            - img [ref=e106]
+            - generic [ref=e107]:
+              - text: "\" alt=\"Margareth\" onerror=\"this.src='https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=400&q=80'\" />"
+              - generic [ref=e108]: gilf
+          - generic [ref=e109]:
+            - heading "Margareth" [level=3] [ref=e110]
+            - paragraph [ref=e111]: Uncensored companion.
+            - generic [ref=e112]:
+              - generic [ref=e113]: Chat Companion
+              - button "💬" [ref=e114]
+        - generic [ref=e115] [cursor=pointer]:
+          - generic [ref=e116]:
+            - img [ref=e117]
+            - generic [ref=e118]:
+              - text: "\" alt=\"Valentina\" onerror=\"this.src='https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=400&q=80'\" />"
+              - generic [ref=e119]: trans
+          - generic [ref=e120]:
+            - heading "Valentina" [level=3] [ref=e121]
+            - paragraph [ref=e122]: Uncensored companion.
+            - generic [ref=e123]:
+              - generic [ref=e124]: Chat Companion
+              - button "💬" [ref=e125]

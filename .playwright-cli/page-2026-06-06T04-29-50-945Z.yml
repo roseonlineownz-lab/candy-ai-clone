@@ -1,0 +1,31 @@
+- generic [ref=e2]:
+  - complementary [ref=e3]:
+    - generic [ref=e4]: Candy.ai
+    - navigation [ref=e5]:
+      - button "✨ Explore" [ref=e6] [cursor=pointer]:
+        - generic [ref=e7]: ✨
+        - text: Explore
+      - button "💬 Chat" [ref=e8] [cursor=pointer]:
+        - generic [ref=e9]: 💬
+        - text: Chat
+      - button "👗 AI Undress" [ref=e10] [cursor=pointer]:
+        - generic [ref=e11]: 👗
+        - text: AI Undress
+    - generic [ref=e12]:
+      - generic [ref=e13]: PRO MEMBERSHIP
+      - generic [ref=e14]:
+        - text: 🪙
+        - generic [ref=e15]: 12,967
+  - main [ref=e16]:
+    - generic [ref=e17]:
+      - generic [ref=e18]:
+        - heading "Find your perfect AI Companion" [level=1] [ref=e19]
+        - paragraph [ref=e20]: Chat, roleplay, and create custom scenes with premium uncensored AI personas.
+      - generic [ref=e21]:
+        - button "All" [ref=e22] [cursor=pointer]
+        - button "Girls" [ref=e23] [cursor=pointer]
+        - button "Boys" [ref=e24] [cursor=pointer]
+        - button "Anime" [ref=e25] [cursor=pointer]
+      - generic [ref=e27]:
+        - generic [ref=e28]: ⚠️
+        - paragraph [ref=e29]: Failed to connect to the NovaMaster Chat API. Please ensure the server on port 8069 is running.

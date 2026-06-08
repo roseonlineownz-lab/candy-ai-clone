@@ -16,6 +16,9 @@ from dotenv import load_dotenv
 for _env in (
     Path(__file__).resolve().parent / ".env",
     Path.home() / ".env",
+    Path.home() / ".config/novamaster/livekit.env",
+    Path.home() / ".hermes/livekit.env",
+    Path.home() / ".hermes/.env",
 ):
     if _env.exists():
         load_dotenv(_env, override=False)
@@ -23,7 +26,7 @@ for _env in (
 # ── directories ──────────────────────────────────────────────────────
 OUTPUT_DIR: Path = Path(os.getenv("CANDY_OUTPUT_DIR", "/home/faramix/avatar_engine/output"))
 NSFW_MODELS_DIR: Path = Path(os.getenv("CANDY_NSFW_MODELS_DIR", "/home/faramix/Mark-XXX/cache"))
-AVATAR_DIR: Path = Path(os.getenv("CANDY_AVATAR_DIR", "/home/faramix/avatar_engine/identities"))
+AVATAR_DIR: Path = Path(os.getenv("CANDY_AVATAR_DIR", "/home/faramix/candy-ai-clone/avatar_engine/identities"))
 VOICE_CACHE_DIR: Path = Path(os.getenv("CANDY_VOICE_CACHE_DIR", "/tmp/nova_voice_cache"))
 
 # ── external scripts ────────────────────────────────────────────────

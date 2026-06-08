@@ -1,0 +1,45 @@
+- generic [ref=e2]:
+  - complementary [ref=e3]:
+    - generic [ref=e4]: Candy.ai
+    - navigation [ref=e5]:
+      - button "✨ Explore" [ref=e6] [cursor=pointer]:
+        - generic [ref=e7]: ✨
+        - text: Explore
+      - button "💬 Chat" [active] [ref=e8] [cursor=pointer]:
+        - generic [ref=e9]: 💬
+        - text: Chat
+      - button "👗 AI Undress" [ref=e10] [cursor=pointer]:
+        - generic [ref=e11]: 👗
+        - text: AI Undress
+    - generic [ref=e12]:
+      - generic [ref=e13]: PRO MEMBERSHIP
+      - generic [ref=e14]:
+        - text: 🪙
+        - generic [ref=e15]: 12,967
+  - main [ref=e16]:
+    - generic [ref=e127]:
+      - generic [ref=e128]:
+        - generic [ref=e129]:
+          - generic [ref=e131]:
+            - heading "Airi" [level=3] [ref=e132]
+            - generic [ref=e133]: Online
+          - generic [ref=e134]:
+            - button "🔇" [ref=e135] [cursor=pointer]
+            - button "⚙️" [ref=e136] [cursor=pointer]
+            - button "🗑️" [ref=e137] [cursor=pointer]
+        - generic [ref=e139]:
+          - generic [ref=e140]: Airi
+          - text: Hallo! Ik ben Airi. Hoe kan ik je vandaag helpen?
+        - generic [ref=e142]:
+          - textbox "Type a message..." [ref=e143]
+          - button [ref=e144] [cursor=pointer]:
+            - img [ref=e145]
+      - generic [ref=e147]:
+        - heading "Airi" [level=2] [ref=e149]
+        - generic [ref=e150]: companion
+        - paragraph [ref=e151]: No description available.
+        - generic [ref=e152]:
+          - heading "Direct NSFW Tools" [level=4] [ref=e153]
+          - paragraph [ref=e154]: Undress this companion using Venice AI integration.
+          - button "👗 Undress Companion" [ref=e155] [cursor=pointer]
+          - button "⚙️ Adjust Preferences" [ref=e156] [cursor=pointer]

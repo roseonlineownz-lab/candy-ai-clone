@@ -11,5 +11,8 @@
   "devDependencies": {
     "esbuild": "^0.28.0",
     "vite": "^6.3.5"
+  },
+  "dependencies": {
+    "livekit-client": "^2.19.1"
   }
 }

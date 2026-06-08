@@ -70,6 +70,9 @@
                 </div>
               </div>
               <div class="chat-header-actions">
+                <button class="icon-btn" id="avatarCallBtn" onclick="toggleAvatarCall()" title="Start Avatar Call">
+                  📹
+                </button>
                 <button class="icon-btn" id="voiceToggleBtn" onclick="toggleVoice()" title="Toggle Voice/Audio">
                   🔊
                 </button>
@@ -79,6 +82,21 @@
                 <button class="icon-btn" onclick="clearActiveHistory()" title="Clear Conversation">
                   🗑️
                 </button>
+              </div>
+            </div>
+
+            <div class="avatar-call-panel" id="avatarCallPanel" style="display: none;">
+              <div class="avatar-call-stage">
+                <video id="avatarCallVideo" autoplay playsinline></video>
+                <div id="avatarCallEmpty" class="avatar-call-empty">
+                  <div class="ring-pulse"></div>
+                  <span id="avatarCallState">Idle</span>
+                </div>
+              </div>
+              <div id="avatarCallAudio"></div>
+              <div class="avatar-call-meta">
+                <span id="avatarCallDetail">LemonSlice LiveKit</span>
+                <button class="btn btn-secondary btn-small" id="avatarEndBtn" onclick="stopAvatarCall()" disabled>End</button>
               </div>
             </div>
             

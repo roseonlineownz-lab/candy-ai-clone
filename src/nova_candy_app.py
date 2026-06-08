@@ -26,6 +26,7 @@ log = logging.getLogger("nova_chat")
 
 sys.path.insert(0, "/home/faramix")
 sys.path.insert(0, "/home/faramix/core")
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from avatar_engine.nova_roleplay_brain import (
     PERSONAS, get_active_persona, set_active_persona, list_personas,
@@ -38,11 +39,17 @@ from typing import Optional, Dict, List, Any
 from src.multimodal_engine import SuperGrokMultiModalEngine
 from src.adaptive_scheduler import AdaptiveContentScheduler
 from src.universal_multimodal_engine import UniversalMultiModalEngine
+from src.lemonslice_livekit import (
+    LemonSliceConfigError,
+    LemonSliceLiveKitBridge,
+    get_lemonslice_health,
+)
 import asyncio
 
 multimodal_engine = SuperGrokMultiModalEngine()
 adaptive_scheduler = AdaptiveContentScheduler()
 universal_engine = UniversalMultiModalEngine()
+lemonslice_bridge = LemonSliceLiveKitBridge()
 
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
@@ -81,9 +88,16 @@ app.mount("/output", StaticFiles(directory=str(OUTPUT_DIR)), name="output")
 
 @app.get("/avatar/{filename}")
 def get_avatar(filename: str):
+    import mimetypes
     path = AVATAR_DIR / filename
-    if path.exists():
-        return FileResponse(path)
+    if path.exists() and path.is_file():
+        media_type = mimetypes.guess_type(str(path))[0] or "application/octet-stream"
+        return FileResponse(
+            path,
+            media_type=media_type,
+            filename=filename,
+            headers={"Cache-Control": "public, max-age=3600"}
+        )
     return JSONResponse({"error": "not found"}, status_code=404)
 
 # ======================================================================
@@ -111,7 +125,7 @@ async def api_chat_normal(request: Request):
     await ensure_session(session_id, "normal")
     await add_message(session_id, "user", message)
 
-    response_text, model_used = route_chat(message, force_model=model)
+    response_text, model_used = await asyncio.to_thread(route_chat, message, force_model=model)
     await add_message(session_id, "ai", response_text, model=model_used)
 
     return {"response": response_text, "model": model_used, "session_id": session_id}
@@ -130,6 +144,54 @@ async def api_switch(request: Request):
     data = await request.json()
     persona = set_active_persona(data.get("persona", "nova"))
     return {"status": "switched", "persona": persona["name"]}
+
+@app.get("/api/avatar/lemonslice/health")
+def api_lemonslice_health(persona_key: Optional[str] = None):
+    return get_lemonslice_health(persona_key)
+
+@app.post("/api/avatar/lemonslice/session")
+async def api_lemonslice_session(request: Request):
+    data = await request.json()
+    persona_key = data.get("persona_key")
+    if persona_key and persona_key in PERSONAS:
+        persona = PERSONAS[persona_key]
+    else:
+        persona_key, persona = get_active_persona()
+
+    try:
+        return await lemonslice_bridge.create_session(
+            persona_key=persona_key,
+            persona=persona,
+            agent_prompt=data.get("agent_prompt"),
+            agent_idle_prompt=data.get("agent_idle_prompt"),
+            idle_timeout=data.get("idle_timeout"),
+            response_done_timeout=data.get("response_done_timeout"),
+            simulcast=bool(data.get("simulcast", True)),
+        )
+    except LemonSliceConfigError as exc:
+        return JSONResponse(
+            {
+                "error": "lemonslice_not_configured",
+                "missing": exc.missing,
+                "health": get_lemonslice_health(persona_key),
+            },
+            status_code=400,
+        )
+    except Exception as exc:
+        log.error("LemonSlice session create failed: %s", exc)
+        return JSONResponse({"error": "lemonslice_session_failed"}, status_code=502)
+
+@app.post("/api/avatar/lemonslice/session/{session_id}/control")
+async def api_lemonslice_control(session_id: str, request: Request):
+    data = await request.json()
+    event = data.get("event", "terminate")
+    try:
+        return await lemonslice_bridge.control_session(session_id, event=event)
+    except LemonSliceConfigError as exc:
+        return JSONResponse({"error": "lemonslice_not_configured", "missing": exc.missing}, status_code=400)
+    except Exception as exc:
+        log.error("LemonSlice control failed: %s", exc)
+        return JSONResponse({"error": "lemonslice_control_failed"}, status_code=502)
 
 @app.post("/api/chat/nsfw")
 async def api_chat_nsfw(request: Request):
@@ -242,7 +304,8 @@ async def api_chat_nsfw(request: Request):
         else:
             log.error("Multimodal generation failed: %s", experience.get("error"))
             # Fallback to standard chat response if multimodal fails
-            response_text, model_used = route_chat(
+            response_text, model_used = await asyncio.to_thread(
+                route_chat,
                 f"{persona['system_prompt']}\n\nUser: {message}\n\n{persona['name']}:",
                 voice_uncensored=True
             )
@@ -281,7 +344,7 @@ async def api_chat_nsfw(request: Request):
             f"{persona['name']}:"
         )
         
-        response_text, model_used = route_chat(full_prompt, voice_uncensored=True)
+        response_text, model_used = await asyncio.to_thread(route_chat, full_prompt, voice_uncensored=True)
         
         response_text = response_text.strip()
         if response_text.startswith(f"{persona['name']}:"):

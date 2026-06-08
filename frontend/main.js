@@ -1,9 +1,15 @@
+import { Room, RoomEvent, Track } from 'livekit-client';
+
 // Global State
 let activeTab = 'explore';
 let personas = [];
 let activePersona = null;
 let voiceOn = localStorage.getItem('candy_voice_on') === 'true';
 let audioPlayer = null;
+let avatarRoom = null;
+let avatarSessionId = null;
+let avatarStartedAt = 0;
+let avatarTimer = null;
 
 // AI Undress State
 let uploadedImageBase64 = null;
@@ -15,6 +21,7 @@ let isGeneratingUndress = false;
 document.addEventListener('DOMContentLoaded', () => {
   // Setup voice button styling
   updateVoiceButtonUI();
+  updateAvatarCallUI('idle', 'LemonSlice LiveKit');
   
   // Load initial view
   loadCompanions();
@@ -62,7 +69,10 @@ async function loadCompanions() {
     if (!res.ok) throw new Error('Failed to fetch personas');
     const data = await res.json();
     
-    personas = data.personas;
+    personas = Object.entries(data.personas).map(([key, val]) => ({
+      key,
+      ...val
+    }));
     const activeKey = data.active;
     
     // Find active persona object
@@ -122,6 +132,9 @@ function renderCompanionsGrid() {
 // Select a companion and switch to the chat view
 async function selectCompanion(personaKey) {
   try {
+    if (avatarRoom || avatarSessionId) {
+      await window.stopAvatarCall();
+    }
     const res = await fetch('/api/switch', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -374,6 +387,143 @@ function playVoiceAudio(base64Data) {
   audioPlayer = new Audio('data:audio/mp3;base64,' + base64Data);
   audioPlayer.play().catch(e => console.error('Audio play failed:', e));
 }
+
+function updateAvatarCallUI(state, detail = '') {
+  const panel = document.getElementById('avatarCallPanel');
+  const stateEl = document.getElementById('avatarCallState');
+  const detailEl = document.getElementById('avatarCallDetail');
+  const callBtn = document.getElementById('avatarCallBtn');
+  const endBtn = document.getElementById('avatarEndBtn');
+  const empty = document.getElementById('avatarCallEmpty');
+  const video = document.getElementById('avatarCallVideo');
+  if (panel) panel.style.display = state === 'idle' ? 'none' : 'flex';
+  if (stateEl) stateEl.textContent = state;
+  if (detailEl) detailEl.textContent = detail || 'LemonSlice LiveKit';
+  if (endBtn) endBtn.disabled = state === 'idle' || state === 'ending';
+  if (callBtn) {
+    callBtn.classList.toggle('active', state !== 'idle');
+    callBtn.title = state === 'idle' ? 'Start Avatar Call' : 'Stop Avatar Call';
+  }
+  if (empty) empty.style.display = state === 'ready' ? 'none' : 'flex';
+  if (video && state !== 'ready') video.style.display = 'none';
+}
+
+function setAvatarTimer() {
+  clearInterval(avatarTimer);
+  avatarTimer = setInterval(() => {
+    if (!avatarStartedAt) return;
+    const elapsed = Math.max(0, Math.round((Date.now() - avatarStartedAt) / 1000));
+    const detail = elapsed < 5 ? `warming up ${elapsed}s` : `waiting ${elapsed}s`;
+    updateAvatarCallUI('ringing', detail);
+  }, 1000);
+}
+
+function attachAvatarTrack(track) {
+  if (track.kind === Track.Kind.Video) {
+    const video = document.getElementById('avatarCallVideo');
+    if (!video) return;
+    track.attach(video);
+    video.style.display = 'block';
+  }
+  if (track.kind === Track.Kind.Audio) {
+    const audioHost = document.getElementById('avatarCallAudio');
+    if (!audioHost) return;
+    const audioEl = track.attach();
+    audioEl.autoplay = true;
+    audioHost.replaceChildren(audioEl);
+  }
+}
+
+function handleLemonSliceData(payload, topic) {
+  if (topic !== 'lemonslice') return;
+  let parsed;
+  try {
+    parsed = JSON.parse(new TextDecoder().decode(payload));
+  } catch {
+    return;
+  }
+  if (!parsed || parsed.type !== 'bot_ready') return;
+  clearInterval(avatarTimer);
+  updateAvatarCallUI('ready', `session ${parsed.session_id || avatarSessionId || 'ready'}`);
+}
+
+window.toggleAvatarCall = async function() {
+  if (avatarRoom || avatarSessionId) {
+    await window.stopAvatarCall();
+  } else {
+    await window.startAvatarCall();
+  }
+};
+
+window.startAvatarCall = async function() {
+  if (!activePersona) {
+    appendMessageUI('companion', 'Select a companion first.', 'System');
+    return;
+  }
+  updateAvatarCallUI('ringing', 'starting');
+  avatarStartedAt = Date.now();
+  setAvatarTimer();
+  try {
+    const response = await fetch('/api/avatar/lemonslice/session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ persona_key: activePersona.key })
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      const missing = Array.isArray(data.missing) ? data.missing.join(', ') : 'configuration';
+      throw new Error(`Missing ${missing}`);
+    }
+
+    avatarSessionId = data.session_id;
+    avatarRoom = new Room({ adaptiveStream: true, dynacast: true });
+    avatarRoom.on(RoomEvent.TrackSubscribed, attachAvatarTrack);
+    avatarRoom.on(RoomEvent.DataReceived, handleLemonSliceData);
+    avatarRoom.on(RoomEvent.Disconnected, () => {
+      clearInterval(avatarTimer);
+      avatarRoom = null;
+      updateAvatarCallUI('idle', 'LemonSlice LiveKit');
+    });
+    await avatarRoom.connect(data.livekit_url, data.participant_token);
+    updateAvatarCallUI('ringing', `room ${data.room}`);
+  } catch (error) {
+    console.error('Avatar call failed:', error);
+    clearInterval(avatarTimer);
+    avatarRoom = null;
+    avatarSessionId = null;
+    updateAvatarCallUI('error', error.message || 'call failed');
+  }
+};
+
+window.stopAvatarCall = async function() {
+  updateAvatarCallUI('ending', 'closing');
+  clearInterval(avatarTimer);
+  const sessionId = avatarSessionId;
+  avatarSessionId = null;
+  if (avatarRoom) {
+    avatarRoom.disconnect();
+    avatarRoom = null;
+  }
+  const video = document.getElementById('avatarCallVideo');
+  if (video) {
+    video.srcObject = null;
+    video.style.display = 'none';
+  }
+  const audioHost = document.getElementById('avatarCallAudio');
+  if (audioHost) audioHost.replaceChildren();
+  if (sessionId) {
+    try {
+      await fetch(`/api/avatar/lemonslice/session/${encodeURIComponent(sessionId)}/control`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event: 'terminate' })
+      });
+    } catch (error) {
+      console.error('Avatar terminate failed:', error);
+    }
+  }
+  updateAvatarCallUI('idle', 'LemonSlice LiveKit');
+};
 
 // Clear active companion's conversation history
 window.clearActiveHistory = async function() {
@@ -1081,5 +1231,4 @@ class AdaptiveContentManager {
 // Initialize adaptive content manager
 const adaptiveContentManager = new AdaptiveContentManager();
 window.adaptiveContentManager = adaptiveContentManager;
-
-
+window.sendChatMessage = sendChatMessage;
