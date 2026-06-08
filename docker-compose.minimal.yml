@@ -1,0 +1,28 @@
+services:
+  candy-api:
+    build:
+      context: .
+      dockerfile: minimal.Dockerfile
+    container_name: candy-api
+    ports:
+      - "127.0.0.1:9500:9500"
+      - "127.0.0.1:8069:8069"
+    volumes:
+      - ./avatar_engine/identities:/app/avatar_engine/identities:ro
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8069/api/personas"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  candy-frontend:
+    image: nginx:alpine
+    container_name: candy-frontend
+    ports:
+      - "127.0.0.1:3456:80"
+    volumes:
+      - ./frontend/dist:/usr/share/nginx/html:ro
+    restart: unless-stopped
