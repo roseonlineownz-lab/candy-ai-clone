@@ -106,10 +106,10 @@ class SuperGrokMultiModalEngine:
             
             # route_chat is sync, run in threadpool to prevent blocking FastAPI event loop
             try:
-    from core.model_router import route_chat
-except ImportError:
-    async def route_chat(message, session_id=None, **kwargs):
-        return {"response": message, "model": "stub"}
+                from core.model_router import route_chat
+            except ImportError:
+                async def route_chat(message, session_id=None, **kwargs):
+                    return {"response": message, "model": "stub"}
 
             response_text, model_used = await asyncio.to_thread(
                 route_chat, prompt, None, True  # voice_uncensored=True
@@ -186,6 +186,8 @@ except ImportError:
         try:
             filename = f"audio_{uuid.uuid4().hex[:8]}.mp3"
             output_path = self.cache_dir / filename
+            if edge_tts is None:
+                return None
             communicate = edge_tts.Communicate(text, voice)
             await communicate.save(str(output_path))
             return str(output_path)
