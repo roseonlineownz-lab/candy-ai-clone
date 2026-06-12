@@ -9,8 +9,14 @@ services:
       - "127.0.0.1:8069:8069"
     volumes:
       - ./avatar_engine/identities:/app/avatar_engine/identities:ro
+      - /home/faramix/video-factory:/home/faramix/video-factory:ro
+      - /home/faramix/ComfyUI/models:/home/faramix/ComfyUI/models:ro
     environment:
       - PYTHONUNBUFFERED=1
+      - CANDY_COMFY_URL=http://host.docker.internal:8188
+      - CANDY_NOIZ_URL=http://host.docker.internal:7438
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8069/health', timeout=5).read()"]
@@ -25,4 +31,5 @@ services:
       - "127.0.0.1:3456:80"
     volumes:
       - ./frontend/dist:/usr/share/nginx/html:ro
+      - ./nginx.candy.conf:/etc/nginx/conf.d/default.conf:ro
     restart: unless-stopped

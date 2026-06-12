@@ -12,6 +12,24 @@ let avatarStartedAt = 0;
 let avatarTimer = null;
 let studioCapabilities = null;
 
+const isCandySubpath = window.location.pathname.startsWith('/candy');
+const API_BASE = isCandySubpath ? '/candy-api' : '';
+const GENERATE_BASE = isCandySubpath ? '/candy-generate' : '';
+
+function apiPath(path) {
+  return `${API_BASE}${path}`;
+}
+
+function generatePath(path) {
+  return `${GENERATE_BASE}${path}`;
+}
+
+function mediaPath(path) {
+  if (!isCandySubpath) return path;
+  if (path.startsWith('/avatar/') || path.startsWith('/output/')) return apiPath(path);
+  return path;
+}
+
 // AI Undress State
 let uploadedImageBase64 = null;
 let selectedLocalImagePath = null;
@@ -70,7 +88,7 @@ window.switchTab = function(tabId) {
 // Load companions from the backend API
 async function loadCompanions() {
   try {
-    const res = await fetch('/api/personas');
+    const res = await fetch(apiPath('/api/personas'));
     if (!res.ok) throw new Error('Failed to fetch personas');
     const data = await res.json();
     
@@ -113,7 +131,7 @@ function renderCompanionsGrid() {
     card.onclick = () => selectCompanion(p.key);
     
     // Use fallback emoji or avatar path
-    const avatarUrl = p.avatar ? p.avatar : 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 24 24" fill="%23e8467c"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>';
+    const avatarUrl = p.avatar ? mediaPath(p.avatar) : 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 24 24" fill="%23e8467c"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>';
     const bioText = p.system_prompt ? p.system_prompt.split('.')[0] + '.' : 'Uncensored companion.';
     
     card.innerHTML = `
@@ -141,7 +159,7 @@ async function selectCompanion(personaKey) {
     if (avatarRoom || avatarSessionId) {
       await window.stopAvatarCall();
     }
-    const res = await fetch('/api/switch', {
+    const res = await fetch(apiPath('/api/switch'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ persona: personaKey })
@@ -186,7 +204,7 @@ window.loadStudioCapabilities = async function() {
   if (providersEl) providersEl.innerHTML = '<div class="loading-state">Loading providers...</div>';
 
   try {
-    const res = await fetch('/api/studio/capabilities');
+    const res = await fetch(apiPath('/api/studio/capabilities'));
     if (!res.ok) throw new Error(`Studio API returned ${res.status}`);
     studioCapabilities = await res.json();
     renderStudioProviders(studioCapabilities.providers || []);
@@ -245,7 +263,7 @@ window.createStudioJob = async function() {
 
   if (statusEl) statusEl.textContent = 'Queueing';
   try {
-    const res = await fetch('/api/studio/jobs', {
+    const res = await fetch(apiPath('/api/studio/jobs'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -286,11 +304,11 @@ async function loadChatHistory() {
 
   // Update header info
   document.getElementById('chatHeaderName').textContent = activePersona.name;
-  document.getElementById('chatHeaderAvatar').src = activePersona.avatar || '';
+  document.getElementById('chatHeaderAvatar').src = mediaPath(activePersona.avatar || '');
   
   // Update sidebar info
   document.getElementById('chatSidebarName').textContent = activePersona.name;
-  document.getElementById('chatSidebarAvatar').src = activePersona.avatar || '';
+  document.getElementById('chatSidebarAvatar').src = mediaPath(activePersona.avatar || '');
   document.getElementById('chatSidebarTag').textContent = activePersona.type || 'Flemish';
   document.getElementById('chatSidebarDesc').textContent = activePersona.system_prompt || 'No description available.';
 
@@ -304,7 +322,7 @@ async function loadChatHistory() {
 
   try {
     const sessionId = getSessionId();
-    const res = await fetch(`/api/history/${sessionId}`);
+    const res = await fetch(apiPath(`/api/history/${sessionId}`));
     if (!res.ok) throw new Error('History load failed');
     const data = await res.json();
     
@@ -341,7 +359,7 @@ async function sendChatMessage() {
   
   try {
     const sessionId = getSessionId();
-    const res = await fetch('/api/chat/nsfw', {
+    const res = await fetch(apiPath('/api/chat/nsfw'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -415,7 +433,7 @@ function appendMediaPlaceholderUI(visuals) {
     attempts++;
     
     try {
-      const checkRes = await fetch(pollUrl, { method: 'HEAD' });
+      const checkRes = await fetch(mediaPath(pollUrl), { method: 'HEAD' });
       if (checkRes.status === 200) {
         clearInterval(interval);
         spinnerBox.style.display = 'none';
@@ -579,7 +597,7 @@ window.startAvatarCall = async function() {
   avatarStartedAt = Date.now();
   setAvatarTimer();
   try {
-    const response = await fetch('/api/avatar/lemonslice/session', {
+    const response = await fetch(apiPath('/api/avatar/lemonslice/session'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ persona_key: activePersona.key })
@@ -628,7 +646,7 @@ window.stopAvatarCall = async function() {
   if (audioHost) audioHost.replaceChildren();
   if (sessionId) {
     try {
-      await fetch(`/api/avatar/lemonslice/session/${encodeURIComponent(sessionId)}/control`, {
+      await fetch(apiPath(`/api/avatar/lemonslice/session/${encodeURIComponent(sessionId)}/control`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ event: 'terminate' })
@@ -647,7 +665,7 @@ window.clearActiveHistory = async function() {
   
   try {
     const sessionId = getSessionId();
-    const res = await fetch(`/api/clear/${sessionId}`, { method: 'POST' });
+    const res = await fetch(apiPath(`/api/clear/${sessionId}`), { method: 'POST' });
     if (!res.ok) throw new Error('Clear history failed');
     
     // Clear display
@@ -671,7 +689,7 @@ window.jumpToUndress = function() {
     // Set UI preview image to companion avatar
     const preview = document.getElementById('undressPreview');
     const placeholder = document.getElementById('undressPlaceholder');
-    preview.src = activePersona.avatar;
+    preview.src = mediaPath(activePersona.avatar);
     preview.style.display = 'block';
     placeholder.style.display = 'none';
     
@@ -761,7 +779,7 @@ window.executeUndress = async function() {
       body.parameters.image_path = selectedLocalImagePath;
     }
 
-    const response = await fetch('/generate', {
+    const response = await fetch(generatePath('/generate'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
@@ -777,7 +795,7 @@ window.executeUndress = async function() {
     if (data.status === 'queued') {
       const imageFile = data.image_file;
       const filename = imageFile.split('/').pop();
-      const imageUrl = `/output/images/${filename}`;
+      const imageUrl = mediaPath(`/output/images/${filename}`);
       
       statusText.textContent = 'Rendering details...';
       
@@ -803,7 +821,7 @@ function pollUndressOutputImage(url) {
     statusText.textContent = `Refining... (${seconds}s)`;
     
     try {
-      const res = await fetch(url, { method: 'HEAD' });
+      const res = await fetch(mediaPath(url), { method: 'HEAD' });
       if (res.status === 200) {
         clearInterval(interval);
         
@@ -853,7 +871,7 @@ class UserPreferencesManager {
     
     async loadPreferences() {
         try {
-            const response = await fetch(`/api/user/preferences/${this.userId}`);
+            const response = await fetch(apiPath(`/api/user/preferences/${this.userId}`));
             const data = await response.json();
             
             this.preferences = {
@@ -867,7 +885,7 @@ class UserPreferencesManager {
     
     async savePreferences(preferences) {
         try {
-            const response = await fetch(`/api/user/preferences`, {
+            const response = await fetch(apiPath(`/api/user/preferences`), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -893,7 +911,7 @@ class UserPreferencesManager {
     
     async getLearningSummary() {
         try {
-            const response = await fetch(`/api/user/learning/${this.userId}`);
+            const response = await fetch(apiPath(`/api/user/learning/${this.userId}`));
             return await response.json();
         } catch (error) {
             console.error('Error getting learning summary:', error);
@@ -1074,7 +1092,7 @@ class AdaptiveContentManager {
             const userId = preferencesManager.userId;
             if (!userId) return;
             
-            const response = await fetch(`/api/user/ready_content/${userId}`);
+            const response = await fetch(apiPath(`/api/user/ready_content/${userId}`));
             if (!response.ok) return;
             
             const data = await response.json();
@@ -1095,7 +1113,7 @@ class AdaptiveContentManager {
         try {
             const userId = preferencesManager.userId;
             if (!userId) return;
-            const response = await fetch(`/api/user/accuracy/${userId}`);
+            const response = await fetch(apiPath(`/api/user/accuracy/${userId}`));
             if (!response.ok) return;
             const data = await response.json();
             this.predictionAccuracy = data.accuracy.accuracy || 0.0;
@@ -1253,8 +1271,8 @@ class AdaptiveContentManager {
                         <div class="msg-tag">${personaName}</div>
                         <div class="media-wrapper" style="margin-top: 10px; border-radius: 12px; overflow: hidden; background: #07070a; border: 1px solid var(--border-color); display: flex; align-items: center; justify-content: center; width: 100%;">
                             ${isVideo ? 
-                                `<video class="result-video" src="${content.visuals.url}" controls style="width: 100%; border-radius: 12px; display: block;"></video>` :
-                                `<img class="result-img" src="${content.visuals.url}" style="width: 100%; border-radius: 12px; display: block;" />`
+                                `<video class="result-video" src="${mediaPath(content.visuals.url)}" controls style="width: 100%; border-radius: 12px; display: block;"></video>` :
+                                `<img class="result-img" src="${mediaPath(content.visuals.url)}" style="width: 100%; border-radius: 12px; display: block;" />`
                             }
                         </div>
                     `;
@@ -1264,7 +1282,7 @@ class AdaptiveContentManager {
             scrollToBottom();
             
             // Mark delivered on server
-            await fetch('/api/content/deliver', {
+            await fetch(apiPath('/api/content/deliver'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ content_id: contentId })
@@ -1285,7 +1303,7 @@ class AdaptiveContentManager {
     
     async dismissContent(contentId) {
         try {
-            await fetch('/api/content/deliver', {
+            await fetch(apiPath('/api/content/deliver'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ content_id: contentId })
