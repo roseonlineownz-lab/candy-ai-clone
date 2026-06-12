@@ -11,17 +11,13 @@ let avatarSessionId = null;
 let avatarStartedAt = 0;
 let avatarTimer = null;
 let studioCapabilities = null;
+let activeCategoryFilter = 'all';
 
 const isCandySubpath = window.location.pathname.startsWith('/candy');
 const API_BASE = isCandySubpath ? '/candy-api' : '';
-const GENERATE_BASE = isCandySubpath ? '/candy-generate' : '';
 
 function apiPath(path) {
   return `${API_BASE}${path}`;
-}
-
-function generatePath(path) {
-  return `${GENERATE_BASE}${path}`;
 }
 
 function mediaPath(path) {
@@ -30,10 +26,17 @@ function mediaPath(path) {
   return path;
 }
 
-// AI Undress State
+function categoryForPersona(persona) {
+  const haystack = `${persona.key || ''} ${persona.type || ''} ${persona.name || ''}`.toLowerCase();
+  if (haystack.includes('anime') || haystack.includes('sakura') || haystack.includes('yuki')) return 'anime';
+  if (haystack.includes('boy') || haystack.includes('guy') || haystack.includes('male')) return 'guys';
+  return 'girls';
+}
+
+// Image Studio State
 let uploadedImageBase64 = null;
 let selectedLocalImagePath = null;
-let activeUndressMode = 'undress';
+let activeUndressMode = 'portrait';
 let isGeneratingUndress = false;
 
 // Initialize
@@ -123,12 +126,34 @@ function renderCompanionsGrid() {
   if (!grid) return;
   
   grid.innerHTML = '';
-  
-  personas.forEach(p => {
+  const visiblePersonas = activeCategoryFilter === 'all'
+    ? personas
+    : personas.filter(p => categoryForPersona(p) === activeCategoryFilter);
+
+  if (!visiblePersonas.length) {
+    grid.innerHTML = `
+      <div class="loading-state">
+        <span style="font-size: 40px;">🔎</span>
+        <p>No companions in this category yet.</p>
+      </div>
+    `;
+    return;
+  }
+
+  visiblePersonas.forEach(p => {
     const isCurrentActive = activePersona && activePersona.key === p.key;
     const card = document.createElement('div');
     card.className = `companion-card ${isCurrentActive ? 'active' : ''}`;
+    card.setAttribute('role', 'button');
+    card.setAttribute('tabindex', '0');
+    card.setAttribute('aria-label', `Chat with ${p.name}`);
     card.onclick = () => selectCompanion(p.key);
+    card.onkeydown = (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        selectCompanion(p.key);
+      }
+    };
     
     // Use fallback emoji or avatar path
     const avatarUrl = p.avatar ? mediaPath(p.avatar) : 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 24 24" fill="%23e8467c"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>';
@@ -143,8 +168,8 @@ function renderCompanionsGrid() {
         <h3>${p.name}</h3>
         <p>${bioText}</p>
         <div class="card-actions">
-          <span class="tag-personality">Chat Companion</span>
-          <button class="chat-now-btn">💬</button>
+          <span class="tag-personality">Chat with me</span>
+          <button class="chat-now-btn" type="button" aria-label="Chat with ${p.name}">💬</button>
         </div>
       </div>
     `;
@@ -152,6 +177,14 @@ function renderCompanionsGrid() {
     grid.appendChild(card);
   });
 }
+
+window.setCategoryFilter = function(filter) {
+  activeCategoryFilter = filter;
+  document.querySelectorAll('.filter-chip').forEach(chip => {
+    chip.classList.toggle('active', chip.dataset.filter === filter);
+  });
+  renderCompanionsGrid();
+};
 
 // Select a companion and switch to the chat view
 async function selectCompanion(personaKey) {
@@ -365,6 +398,7 @@ async function sendChatMessage() {
       body: JSON.stringify({
         message: text,
         session_id: sessionId,
+        persona_key: activePersona.key,
         user_id: preferencesManager.userId
       })
     });
@@ -440,10 +474,10 @@ function appendMediaPlaceholderUI(visuals) {
         mediaWrapper.style.minHeight = 'auto';
         
         if (visuals.type === 'video') {
-          videoElement.src = pollUrl;
+          videoElement.src = mediaPath(pollUrl);
           videoElement.style.display = 'block';
         } else {
-          imgElement.src = pollUrl;
+          imgElement.src = mediaPath(pollUrl);
           imgElement.style.display = 'block';
         }
         scrollToBottom();
@@ -676,7 +710,7 @@ window.clearActiveHistory = async function() {
   }
 };
 
-// Jump to Undress View preselected with active companion's photo
+// Jump to Image Studio view preselected with active companion's photo
 window.jumpToUndress = function() {
   if (!activePersona) return;
   
@@ -701,7 +735,7 @@ window.jumpToUndress = function() {
 };
 
 // ======================================================================
-// AI Undress Logic
+// Image Studio Logic
 // ======================================================================
 
 window.triggerUndressUpload = function() {
@@ -740,7 +774,7 @@ window.selectUndressMode = function(element, modeId) {
 window.executeUndress = async function() {
   if (isGeneratingUndress) return;
   if (!uploadedImageBase64 && !selectedLocalImagePath) {
-    alert('Please upload a photo first by clicking the phone screen mockup!');
+    alert('Please upload or select a reference first by clicking the phone screen mockup!');
     triggerUndressUpload();
     return;
   }
@@ -750,60 +784,46 @@ window.executeUndress = async function() {
   const statusText = document.getElementById('undressStatus');
   
   overlay.style.display = 'flex';
-  statusText.textContent = 'Uploading...';
+  statusText.textContent = 'Queueing Studio job...';
   
   try {
-    // Map mode to scenes supported by backend
-    let sceneId = 'strip'; // default fallback
-    if (activeUndressMode === 'undress') sceneId = 'strip';
-    else if (activeUndressMode === 'tits') sceneId = 'spanking';
-    else if (activeUndressMode === 'pussy') sceneId = 'kutje';
-    else if (activeUndressMode === 'ahegao') sceneId = 'ahegao';
-    else if (activeUndressMode === 'blowjob') sceneId = 'bj';
-    else if (activeUndressMode === 'doggy') sceneId = 'doggy';
-    else if (activeUndressMode === 'cumshot') sceneId = 'squirt';
-    else if (activeUndressMode === 'masturbation') sceneId = 'aftrekken';
-
-    statusText.textContent = 'Contacting Venice AI...';
-    
-    // Prepare request payload
-    const body = {
-      scene_id: sceneId,
-      mode: 'image_undress',
-      parameters: {}
+    const modeMap = {
+      portrait: { mode: 'image', preset: 'companion-portrait' },
+      outfit: { mode: 'image', preset: 'companion-portrait' },
+      scene: { mode: 'image', preset: 'cinematic-scene' },
+      video: { mode: 'video', preset: 'cinematic-scene' },
+      avatar: { mode: 'avatar', preset: 'talking-avatar' },
+      campaign: { mode: 'campaign', preset: 'campaign-pack' },
     };
-    
-    if (uploadedImageBase64) {
-      body.parameters.image = uploadedImageBase64;
-    } else if (selectedLocalImagePath) {
-      body.parameters.image_path = selectedLocalImagePath;
-    }
+    const selected = modeMap[activeUndressMode] || modeMap.portrait;
+    const personaName = activePersona?.name || 'Nova';
+    const body = {
+      mode: selected.mode,
+      preset: selected.preset,
+      persona: activePersona?.key || 'nova',
+      prompt: `${personaName} ${activeUndressMode} reference-based creative studio job`,
+      allow_hosted_fallback: false,
+      reference: uploadedImageBase64 ? 'uploaded-image' : selectedLocalImagePath,
+    };
 
-    const response = await fetch(generatePath('/generate'), {
+    const response = await fetch(apiPath('/api/studio/jobs'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
     });
     
     if (!response.ok) {
-      throw new Error('Failed to generate image. Please ensure the Candy NSFW API is active on port 9500.');
+      throw new Error('Failed to queue Studio job.');
     }
     
     const data = await response.json();
-    console.log('Undress generate response:', data);
-    
-    if (data.status === 'queued') {
-      const imageFile = data.image_file;
-      const filename = imageFile.split('/').pop();
-      const imageUrl = mediaPath(`/output/images/${filename}`);
-      
-      statusText.textContent = 'Rendering details...';
-      
-      // Start polling the output URL for the completed image file
-      pollUndressOutputImage(imageUrl);
-    } else {
-      throw new Error('Invalid backend response status: ' + data.status);
-    }
+    console.log('Image Studio job response:', data);
+    statusText.textContent = `Queued: ${data.provider || 'studio'}`;
+    setTimeout(() => {
+      overlay.style.display = 'none';
+      isGeneratingUndress = false;
+      alert(`Studio job queued: ${data.id}`);
+    }, 600);
   } catch (error) {
     alert(error.message);
     overlay.style.display = 'none';

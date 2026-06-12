@@ -16,14 +16,6 @@ export default defineConfig({
         target: 'http://localhost:8069',
         changeOrigin: true,
       },
-      '/generate': {
-        target: 'http://localhost:9500',
-        changeOrigin: true,
-      },
-      '/output': {
-        target: 'http://localhost:9500',
-        changeOrigin: true,
-      },
     },
   },
   build: {
