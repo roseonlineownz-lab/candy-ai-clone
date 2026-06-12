@@ -13,7 +13,7 @@ services:
       - PYTHONUNBUFFERED=1
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8069/api/personas"]
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8069/health', timeout=5).read()"]
       interval: 30s
       timeout: 10s
       retries: 3

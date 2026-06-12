@@ -762,6 +762,177 @@ body {
   margin-bottom: 15px;
 }
 
+/* Creative Studio */
+.studio-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.9fr) minmax(360px, 1.1fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.studio-panel {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  padding: 22px;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.22);
+}
+
+.studio-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.studio-panel-header h2 {
+  font-size: 20px;
+  line-height: 1.2;
+}
+
+.studio-provider-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.studio-provider-card {
+  min-height: 118px;
+  padding: 16px;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.studio-provider-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: flex-start;
+  margin-bottom: 10px;
+}
+
+.studio-provider-top h3 {
+  font-size: 15px;
+  line-height: 1.25;
+}
+
+.studio-provider-kind {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.studio-ready-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: #ef4444;
+  flex: 0 0 auto;
+  margin-top: 4px;
+}
+
+.studio-ready-dot.ready {
+  background: #22c55e;
+  box-shadow: 0 0 14px rgba(34, 197, 94, 0.55);
+}
+
+.studio-output-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.studio-output-chip {
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(232, 70, 124, 0.12);
+  color: #ffd2e1;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.studio-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.studio-form-grid label,
+.studio-prompt {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.studio-form-grid select,
+.studio-prompt textarea {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.22);
+  color: var(--text-primary);
+  font: inherit;
+  text-transform: none;
+  padding: 12px;
+  outline: none;
+}
+
+.studio-prompt {
+  margin: 16px 0;
+}
+
+.studio-prompt textarea {
+  resize: vertical;
+  min-height: 128px;
+}
+
+.studio-checkbox {
+  justify-content: center;
+  min-height: 69px;
+}
+
+.studio-checkbox input {
+  width: 18px;
+  height: 18px;
+}
+
+.studio-status-pill {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.studio-job-result {
+  margin-top: 14px;
+  min-height: 46px;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.studio-job-card {
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.studio-job-card strong {
+  display: block;
+  color: var(--text-primary);
+  margin-bottom: 6px;
+}
+
 /* AI Undress View Layout */
 .undress-layout {
   display: flex;

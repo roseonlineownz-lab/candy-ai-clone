@@ -54,6 +54,12 @@ from src.lemonslice_livekit import (
     LemonSliceLiveKitBridge,
     get_lemonslice_health,
 )
+from src.studio_fusion import (
+    create_studio_job,
+    get_studio_job,
+    studio_capabilities,
+    studio_health,
+)
 import asyncio
 
 multimodal_engine = SuperGrokMultiModalEngine()
@@ -95,6 +101,14 @@ app.mount("/output", StaticFiles(directory=str(OUTPUT_DIR)), name="output")
 # ======================================================================
 # Shared
 # ======================================================================
+
+@app.get("/health")
+def health():
+    return {
+        "status": "ok",
+        "personas": len(PERSONAS),
+        "studio": studio_health(),
+    }
 
 @app.get("/avatar/{filename}")
 def get_avatar(filename: str):
@@ -148,6 +162,28 @@ async def api_chat_normal(request: Request):
 def api_personas():
     active_key, active = get_active_persona()
     return {"personas": list_personas(), "active": active_key}
+
+@app.get("/api/studio/capabilities")
+def api_studio_capabilities():
+    return studio_capabilities()
+
+@app.post("/api/studio/jobs")
+async def api_create_studio_job(request: Request):
+    try:
+        payload = await request.json()
+        return create_studio_job(payload)
+    except ValueError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
+    except Exception as exc:
+        log.error("Error creating studio job: %s", exc)
+        return JSONResponse({"error": str(exc)}, status_code=500)
+
+@app.get("/api/studio/jobs/{job_id}")
+def api_get_studio_job(job_id: str):
+    job = get_studio_job(job_id)
+    if not job:
+        return JSONResponse({"error": "not found"}, status_code=404)
+    return job
 
 @app.post("/api/switch")
 async def api_switch(request: Request):

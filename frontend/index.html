@@ -23,6 +23,9 @@
         <button class="nav-item" id="btn-tab-chat" onclick="switchTab('chat')">
           <span class="icon">💬</span> Chat
         </button>
+        <button class="nav-item" id="btn-tab-studio" onclick="switchTab('studio')">
+          <span class="icon">🎬</span> Studio
+        </button>
         <button class="nav-item" id="btn-tab-undress" onclick="switchTab('undress')">
           <span class="icon">👗</span> AI Undress
         </button>
@@ -137,6 +140,67 @@
                 ⚙️ Adjust Preferences
               </button>
             </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Studio View -->
+      <section id="studioView" class="view-section">
+        <div class="view-header studio-header">
+          <h1>Creative <span>Studio</span></h1>
+          <p>Local-first media jobs for image, video, voice, avatar, and campaign work.</p>
+        </div>
+
+        <div class="studio-layout">
+          <div class="studio-panel">
+            <div class="studio-panel-header">
+              <h2>Providers</h2>
+              <button class="btn-small btn-secondary" onclick="loadStudioCapabilities()">Refresh</button>
+            </div>
+            <div id="studioProviders" class="studio-provider-grid">
+              <div class="loading-state">Loading providers...</div>
+            </div>
+          </div>
+
+          <div class="studio-panel studio-compose-panel">
+            <div class="studio-panel-header">
+              <h2>Job</h2>
+              <span class="studio-status-pill" id="studioStatus">Idle</span>
+            </div>
+            <div class="studio-form-grid">
+              <label>
+                <span>Mode</span>
+                <select id="studioMode">
+                  <option value="image">Image</option>
+                  <option value="video">Video</option>
+                  <option value="avatar">Avatar</option>
+                  <option value="campaign">Campaign</option>
+                </select>
+              </label>
+              <label>
+                <span>Preset</span>
+                <select id="studioPreset">
+                  <option value="companion-portrait">Companion portrait</option>
+                  <option value="cinematic-scene">Cinematic scene</option>
+                  <option value="talking-avatar">Talking avatar</option>
+                  <option value="campaign-pack">Campaign pack</option>
+                </select>
+              </label>
+              <label>
+                <span>Persona</span>
+                <select id="studioPersona"></select>
+              </label>
+              <label class="studio-checkbox">
+                <input id="studioFallback" type="checkbox" />
+                <span>Hosted fallback</span>
+              </label>
+            </div>
+            <label class="studio-prompt">
+              <span>Prompt</span>
+              <textarea id="studioPrompt" rows="5" placeholder="Cinematic companion portrait, soft key light, subtle camera move"></textarea>
+            </label>
+            <button class="btn btn-primary btn-block" onclick="createStudioJob()">Queue Studio Job</button>
+            <div id="studioJobResult" class="studio-job-result"></div>
           </div>
         </div>
       </section>

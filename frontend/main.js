@@ -10,6 +10,7 @@ let avatarRoom = null;
 let avatarSessionId = null;
 let avatarStartedAt = 0;
 let avatarTimer = null;
+let studioCapabilities = null;
 
 // AI Undress State
 let uploadedImageBase64 = null;
@@ -57,6 +58,10 @@ window.switchTab = function(tabId) {
     if (activePersona) {
       loadChatHistory();
     }
+  } else if (tabId === 'studio') {
+    document.getElementById('studioView').classList.add('active');
+    loadStudioCapabilities();
+    populateStudioPersonas();
   } else if (tabId === 'undress') {
     document.getElementById('undressView').classList.add('active');
   }
@@ -79,6 +84,7 @@ async function loadCompanions() {
     activePersona = personas.find(p => p.key === activeKey) || personas[0];
     
     renderCompanionsGrid();
+    populateStudioPersonas();
   } catch (error) {
     console.error('Error loading companions:', error);
     const grid = document.getElementById('characterGrid');
@@ -153,6 +159,115 @@ async function selectCompanion(personaKey) {
     console.error('Error switching companion:', error);
   }
 }
+
+function escapeHTML(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function populateStudioPersonas() {
+  const select = document.getElementById('studioPersona');
+  if (!select) return;
+  const items = personas.length ? personas : [{ key: 'nova', name: 'Nova' }];
+  select.innerHTML = items.map(p => {
+    const selected = activePersona && activePersona.key === p.key ? 'selected' : '';
+    return `<option value="${escapeHTML(p.key)}" ${selected}>${escapeHTML(p.name || p.key)}</option>`;
+  }).join('');
+}
+
+window.loadStudioCapabilities = async function() {
+  const providersEl = document.getElementById('studioProviders');
+  const statusEl = document.getElementById('studioStatus');
+  if (statusEl) statusEl.textContent = 'Loading';
+  if (providersEl) providersEl.innerHTML = '<div class="loading-state">Loading providers...</div>';
+
+  try {
+    const res = await fetch('/api/studio/capabilities');
+    if (!res.ok) throw new Error(`Studio API returned ${res.status}`);
+    studioCapabilities = await res.json();
+    renderStudioProviders(studioCapabilities.providers || []);
+    if (statusEl) statusEl.textContent = studioCapabilities.status || 'Ready';
+  } catch (error) {
+    console.error('Error loading studio capabilities:', error);
+    if (statusEl) statusEl.textContent = 'Offline';
+    if (providersEl) {
+      providersEl.innerHTML = '<div class="loading-state">Studio API unavailable.</div>';
+    }
+  }
+};
+
+function renderStudioProviders(providers) {
+  const providersEl = document.getElementById('studioProviders');
+  if (!providersEl) return;
+  if (!providers.length) {
+    providersEl.innerHTML = '<div class="loading-state">No providers registered.</div>';
+    return;
+  }
+  providersEl.innerHTML = providers.map(provider => {
+    const outputs = (provider.outputs || [])
+      .map(output => `<span class="studio-output-chip">${escapeHTML(output)}</span>`)
+      .join('');
+    return `
+      <div class="studio-provider-card">
+        <div class="studio-provider-top">
+          <div>
+            <h3>${escapeHTML(provider.name)}</h3>
+            <div class="studio-provider-kind">${escapeHTML(provider.kind || 'local')}</div>
+          </div>
+          <span class="studio-ready-dot ${provider.ready ? 'ready' : ''}"></span>
+        </div>
+        <div class="studio-output-row">${outputs}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+window.createStudioJob = async function() {
+  const statusEl = document.getElementById('studioStatus');
+  const resultEl = document.getElementById('studioJobResult');
+  const prompt = document.getElementById('studioPrompt')?.value?.trim() || '';
+  const payload = {
+    mode: document.getElementById('studioMode')?.value || 'image',
+    preset: document.getElementById('studioPreset')?.value || 'custom',
+    persona: document.getElementById('studioPersona')?.value || activePersona?.key || 'nova',
+    prompt,
+    allow_hosted_fallback: Boolean(document.getElementById('studioFallback')?.checked),
+  };
+
+  if (!prompt) {
+    if (resultEl) resultEl.innerHTML = '<div class="studio-job-card">Prompt is required.</div>';
+    return;
+  }
+
+  if (statusEl) statusEl.textContent = 'Queueing';
+  try {
+    const res = await fetch('/api/studio/jobs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `Studio API returned ${res.status}`);
+    if (statusEl) statusEl.textContent = 'Queued';
+    if (resultEl) {
+      resultEl.innerHTML = `
+        <div class="studio-job-card">
+          <strong>${escapeHTML(data.id)}</strong>
+          <div>Provider: ${escapeHTML(data.provider)}</div>
+          <div>Mode: ${escapeHTML(data.mode)} · Preset: ${escapeHTML(data.preset)}</div>
+        </div>
+      `;
+    }
+  } catch (error) {
+    console.error('Error creating studio job:', error);
+    if (statusEl) statusEl.textContent = 'Error';
+    if (resultEl) resultEl.innerHTML = `<div class="studio-job-card">${escapeHTML(error.message)}</div>`;
+  }
+};
 
 // Generate the dynamic session ID for database history matching the Python backend
 function getSessionId() {

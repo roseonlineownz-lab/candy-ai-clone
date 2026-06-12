@@ -104,7 +104,7 @@ def test_vault_skips_entries_missing_name_or_type(monkeypatch, tmp_path: Path):
     assert set(brain.PERSONAS) == {"ok"}
     # list_personas() must not raise KeyError after this filter
     listing = brain.list_personas()
-    assert listing == {"ok": {"name": "OK", "type": "test"}}
+    assert listing == {"ok": {"name": "OK", "type": "test", "avatar": "/avatar/"}}
 
 
 def test_default_key_falls_back_to_first_when_no_nova(monkeypatch, tmp_path: Path):
