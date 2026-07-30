@@ -211,6 +211,36 @@ def get_avatar(filename: str):
         )
     return JSONResponse({"error": "not found"}, status_code=404)
 
+@app.post("/api/persona/image")
+async def api_persona_image(request: Request):
+    """Generate a fully fictional persona image locally via ComfyUI."""
+    try:
+        from core.local_image_gen import generate_persona_image, comfy_available
+    except Exception as exc:
+        return JSONResponse({"error": f"local gen unavailable: {exc}"}, status_code=503)
+    if not comfy_available():
+        return JSONResponse({"error": "comfyui down", "hint": "systemctl --user start comfyui"}, status_code=503)
+    payload = await request.json()
+    prompt = (payload.get("prompt") or "").strip()
+    if not prompt:
+        return JSONResponse({"error": "prompt required"}, status_code=400)
+    result = generate_persona_image(
+        prompt,
+        width=int(payload.get("width", 512)),
+        height=int(payload.get("height", 512)),
+        steps=int(payload.get("steps", 25)),
+    )
+    if not result.get("ok"):
+        return JSONResponse(result, status_code=502)
+    return result
+
+@app.get("/generated/{filename}")
+def get_generated(filename: str):
+    path = Path(__file__).resolve().parent / "assets" / "generated" / filename
+    if path.exists() and path.is_file() and path.suffix.lower() in {".png", ".jpg", ".webp"}:
+        return FileResponse(path, media_type=mimetypes.guess_type(str(path))[0] or "image/png")
+    return JSONResponse({"error": "not found"}, status_code=404)
+
 @app.get("/health")
 def health():
     studio = studio_health() if studio_health else {"status": "unavailable"}
