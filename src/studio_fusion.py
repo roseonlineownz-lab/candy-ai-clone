@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 import hashlib
+import re
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -39,6 +40,7 @@ PROVIDER_MODELS = {
     "noiz-voice": "noiz-v1",
     "higgsfield": "higgsfield-web",
 }
+JOB_ID_RE = re.compile(r"^studio-[a-f0-9]{12}$")
 
 
 def _now() -> str:
@@ -198,16 +200,21 @@ def _save_idempotency_map(value: dict[str, str]) -> None:
     IDEMPOTENCY_FILE.write_text(json.dumps(value, indent=2), encoding="utf-8")
 
 
-def _write_job(job: dict[str, Any]) -> None:
+def _normalize_job_id(job_id: str) -> str:
+    value = str(job_id).strip()
+    if not JOB_ID_RE.fullmatch(value):
+        raise ValueError("invalid job id")
+    return value
+
+
+def _write_job(job_id: str, job: dict[str, Any]) -> None:
     JOBS_DIR.mkdir(parents=True, exist_ok=True)
-    path = _job_manifest_path(str(job["id"]))
+    path = _job_manifest_path(job_id)
     path.write_text(json.dumps(job, indent=2), encoding="utf-8")
 
 
 def _job_manifest_path(job_id: str) -> Path:
-    safe_id = "".join(ch for ch in job_id if ch.isalnum() or ch in "-_")
-    if not safe_id.startswith("studio-"):
-        raise ValueError("invalid job id")
+    safe_id = _normalize_job_id(job_id)
     path = (JOBS_DIR / f"{safe_id}.json").resolve()
     jobs_root = JOBS_DIR.resolve()
     if path.parent != jobs_root:
@@ -345,7 +352,7 @@ def create_studio_job(payload: dict[str, Any]) -> dict[str, Any]:
             ],
         },
     }
-    _write_job(job)
+    _write_job(job_id, job)
     if idempotency_key:
         idempotency_map = _load_idempotency_map()
         idempotency_map[idempotency_key] = job_id
@@ -355,12 +362,16 @@ def create_studio_job(payload: dict[str, Any]) -> dict[str, Any]:
 
 def get_studio_job(job_id: str) -> dict[str, Any] | None:
     try:
-        path = _job_manifest_path(job_id)
+        safe_id = _normalize_job_id(job_id)
     except ValueError:
         return None
-    if not path.exists():
+    if not JOBS_DIR.exists():
         return None
-    return json.loads(path.read_text(encoding="utf-8"))
+    for path in JOBS_DIR.glob("studio-*.json"):
+        if path.stem != safe_id:
+            continue
+        return json.loads(path.read_text(encoding="utf-8"))
+    return None
 
 
 def cancel_studio_job(job_id: str) -> dict[str, Any] | None:
@@ -374,7 +385,7 @@ def cancel_studio_job(job_id: str) -> dict[str, Any] | None:
     progress = dict(job.get("progress") or {})
     progress.update({"stage": "cancelled"})
     job["progress"] = progress
-    _write_job(job)
+    _write_job(_normalize_job_id(str(job["id"])), job)
     return job
 
 
