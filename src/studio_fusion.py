@@ -200,7 +200,19 @@ def _save_idempotency_map(value: dict[str, str]) -> None:
 
 def _write_job(job: dict[str, Any]) -> None:
     JOBS_DIR.mkdir(parents=True, exist_ok=True)
-    (JOBS_DIR / f"{job['id']}.json").write_text(json.dumps(job, indent=2), encoding="utf-8")
+    path = _job_manifest_path(str(job["id"]))
+    path.write_text(json.dumps(job, indent=2), encoding="utf-8")
+
+
+def _job_manifest_path(job_id: str) -> Path:
+    safe_id = "".join(ch for ch in job_id if ch.isalnum() or ch in "-_")
+    if not safe_id.startswith("studio-"):
+        raise ValueError("invalid job id")
+    path = (JOBS_DIR / f"{safe_id}.json").resolve()
+    jobs_root = JOBS_DIR.resolve()
+    if path.parent != jobs_root:
+        raise ValueError("invalid job path")
+    return path
 
 
 def _select_provider(
@@ -342,8 +354,10 @@ def create_studio_job(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def get_studio_job(job_id: str) -> dict[str, Any] | None:
-    safe_id = "".join(ch for ch in job_id if ch.isalnum() or ch in "-_")
-    path = JOBS_DIR / f"{safe_id}.json"
+    try:
+        path = _job_manifest_path(job_id)
+    except ValueError:
+        return None
     if not path.exists():
         return None
     return json.loads(path.read_text(encoding="utf-8"))
