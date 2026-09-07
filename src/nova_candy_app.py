@@ -55,8 +55,11 @@ from src.lemonslice_livekit import (
     get_lemonslice_health,
 )
 from src.studio_fusion import (
+    cancel_studio_job,
     create_studio_job,
+    get_studio_gallery,
     get_studio_job,
+    list_studio_jobs,
     studio_capabilities,
     studio_health,
 )
@@ -178,12 +181,32 @@ async def api_create_studio_job(request: Request):
         log.error("Error creating studio job: %s", exc)
         return JSONResponse({"error": str(exc)}, status_code=500)
 
+
+@app.get("/api/studio/jobs")
+def api_list_studio_jobs(limit: int = 50):
+    return {"jobs": list_studio_jobs(limit=limit)}
+
+
 @app.get("/api/studio/jobs/{job_id}")
 def api_get_studio_job(job_id: str):
     job = get_studio_job(job_id)
     if not job:
         return JSONResponse({"error": "not found"}, status_code=404)
     return job
+
+
+@app.post("/api/studio/jobs/{job_id}/cancel")
+def api_cancel_studio_job(job_id: str):
+    job = cancel_studio_job(job_id)
+    if not job:
+        return JSONResponse({"error": "not found"}, status_code=404)
+    return job
+
+
+@app.get("/api/studio/gallery")
+def api_studio_gallery(limit: int = 50, persona: Optional[str] = None):
+    return {"items": get_studio_gallery(limit=limit, persona=persona)}
+
 
 @app.post("/api/switch")
 async def api_switch(request: Request):

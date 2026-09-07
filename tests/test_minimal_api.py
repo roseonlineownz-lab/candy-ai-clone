@@ -1,6 +1,7 @@
 from fastapi.testclient import TestClient
 
 import minimal_api
+from src import studio_fusion
 
 
 def test_minimal_api_supports_card_to_chat_flow(monkeypatch):
@@ -52,3 +53,43 @@ def test_minimal_api_supports_card_to_chat_flow(monkeypatch):
     avatar = client.get("/api/avatar/lemonslice/health")
     assert avatar.status_code == 200
     assert avatar.json()["configured"] is False
+
+
+def test_minimal_api_studio_job_retry_cancel_gallery(monkeypatch, tmp_path):
+    monkeypatch.setattr(studio_fusion, "STATE_DIR", tmp_path)
+    monkeypatch.setattr(studio_fusion, "JOBS_DIR", tmp_path / "jobs")
+    monkeypatch.setattr(studio_fusion, "IDEMPOTENCY_FILE", tmp_path / "idempotency.json")
+    monkeypatch.setattr(studio_fusion, "_http_ok", lambda url, timeout=0.5: False)
+    monkeypatch.setattr(minimal_api, "create_studio_job", studio_fusion.create_studio_job)
+    monkeypatch.setattr(minimal_api, "get_studio_job", studio_fusion.get_studio_job)
+    monkeypatch.setattr(minimal_api, "cancel_studio_job", studio_fusion.cancel_studio_job)
+    monkeypatch.setattr(minimal_api, "list_studio_jobs", studio_fusion.list_studio_jobs)
+    monkeypatch.setattr(minimal_api, "get_studio_gallery", studio_fusion.get_studio_gallery)
+
+    client = TestClient(minimal_api.app)
+
+    payload = {
+        "mode": "image",
+        "prompt": "studio portrait",
+        "idempotency_key": "fixed-retry-key",
+    }
+    first = client.post("/api/studio/jobs", json=payload)
+    second = client.post("/api/studio/jobs", json=payload)
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert first.json()["id"] == second.json()["id"]
+    assert second.json()["deduplicated"] is True
+
+    job_id = first.json()["id"]
+    cancelled = client.post(f"/api/studio/jobs/{job_id}/cancel")
+    assert cancelled.status_code == 200
+    assert cancelled.json()["status"] == "cancelled"
+
+    listing = client.get("/api/studio/jobs")
+    assert listing.status_code == 200
+    assert any(job["id"] == job_id for job in listing.json()["jobs"])
+
+    gallery = client.get("/api/studio/gallery")
+    assert gallery.status_code == 200
+    assert any(item["id"] == job_id for item in gallery.json()["items"])

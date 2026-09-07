@@ -148,13 +148,13 @@
       <section id="studioView" class="view-section">
         <div class="view-header studio-header">
           <h1>Creative <span>Studio</span></h1>
-          <p>Local-first media jobs for image, video, voice, avatar, and campaign work.</p>
+          <p>Afbeelding, Video, Galerij en Livegesprek met transparante provider/model en uitvoerlocatie.</p>
         </div>
 
         <div class="studio-layout">
           <div class="studio-panel">
             <div class="studio-panel-header">
-              <h2>Providers</h2>
+              <h2>Providers & Livegesprek status</h2>
               <button class="btn-small btn-secondary" onclick="loadStudioCapabilities()">Refresh</button>
             </div>
             <div id="studioProviders" class="studio-provider-grid">
@@ -190,17 +190,51 @@
                 <span>Persona</span>
                 <select id="studioPersona"></select>
               </label>
+              <label>
+                <span>Image format</span>
+                <select id="studioFormat">
+                  <option value="1:1">1:1</option>
+                  <option value="4:3">4:3</option>
+                  <option value="3:4">3:4</option>
+                  <option value="16:9">16:9</option>
+                  <option value="9:16">9:16</option>
+                </select>
+              </label>
+              <label>
+                <span>Video taak</span>
+                <select id="studioVideoTask">
+                  <option value="text_to_video">Text → Video</option>
+                  <option value="image_to_video">Image → Video</option>
+                  <option value="lipsync">Lipsync</option>
+                </select>
+              </label>
               <label class="studio-checkbox">
                 <input id="studioFallback" type="checkbox" />
                 <span>Hosted fallback</span>
               </label>
             </div>
             <label class="studio-prompt">
+              <span>Referentie (optioneel voor afbeelding, vereist voor i2v/lipsync)</span>
+              <input id="studioReference" type="text" placeholder="/output/images/example.png of upload-id" />
+            </label>
+            <label class="studio-prompt">
               <span>Prompt</span>
               <textarea id="studioPrompt" rows="5" placeholder="Cinematic companion portrait, soft key light, subtle camera move"></textarea>
             </label>
-            <button class="btn btn-primary btn-block" onclick="createStudioJob()">Queue Studio Job</button>
+            <div class="studio-actions">
+              <button class="btn btn-primary btn-block" onclick="createStudioJob()">Queue Studio Job</button>
+              <button class="btn btn-secondary btn-block" onclick="cancelStudioJob()">Cancel active job</button>
+            </div>
             <div id="studioJobResult" class="studio-job-result"></div>
+          </div>
+        </div>
+        <div class="studio-panel" style="margin-top: 20px;">
+          <div class="studio-panel-header">
+            <h2>Galerij</h2>
+            <button class="btn-small btn-secondary" onclick="loadStudioGallery()">Refresh</button>
+          </div>
+          <div id="studioGallery" class="studio-provider-grid">
+            <div class="loading-state">Loading gallery...</div>
           </div>
         </div>
       </section>

@@ -11,6 +11,8 @@ let avatarSessionId = null;
 let avatarStartedAt = 0;
 let avatarTimer = null;
 let studioCapabilities = null;
+let studioJobPoller = null;
+let lastStudioJobId = localStorage.getItem('candy_last_studio_job_id') || null;
 let activeCategoryFilter = 'all';
 
 const isCandySubpath = window.location.pathname.startsWith('/candy');
@@ -83,6 +85,8 @@ window.switchTab = function(tabId) {
     document.getElementById('studioView').classList.add('active');
     loadStudioCapabilities();
     populateStudioPersonas();
+    loadStudioGallery();
+    restoreStudioJob();
   } else if (tabId === 'undress') {
     document.getElementById('undressView').classList.add('active');
   }
@@ -268,10 +272,14 @@ function renderStudioProviders(providers) {
           <div>
             <h3>${escapeHTML(provider.name)}</h3>
             <div class="studio-provider-kind">${escapeHTML(provider.kind || 'local')}</div>
+            <div class="studio-provider-kind">${escapeHTML(provider.model || 'model: unknown')}</div>
+            <div class="studio-provider-kind">Exec: ${escapeHTML(provider.execution_target || 'unknown')}</div>
           </div>
           <span class="studio-ready-dot ${provider.ready ? 'ready' : ''}"></span>
         </div>
         <div class="studio-output-row">${outputs}</div>
+        <div class="studio-provider-kind">Configured: ${provider.state?.configured ? 'yes' : 'no'} · Tested: ${provider.state?.tested ? 'yes' : 'no'} · Busy: ${provider.state?.busy ? 'yes' : 'no'}</div>
+        ${provider.state?.error ? `<div class="studio-provider-kind">Error: ${escapeHTML(provider.state.error)}</div>` : ''}
       </div>
     `;
   }).join('');
@@ -286,6 +294,10 @@ window.createStudioJob = async function() {
     preset: document.getElementById('studioPreset')?.value || 'custom',
     persona: document.getElementById('studioPersona')?.value || activePersona?.key || 'nova',
     prompt,
+    format: document.getElementById('studioFormat')?.value || '1:1',
+    video_task: document.getElementById('studioVideoTask')?.value || 'text_to_video',
+    reference: document.getElementById('studioReference')?.value?.trim() || undefined,
+    idempotency_key: crypto.randomUUID(),
     allow_hosted_fallback: Boolean(document.getElementById('studioFallback')?.checked),
   };
 
@@ -304,21 +316,138 @@ window.createStudioJob = async function() {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || `Studio API returned ${res.status}`);
     if (statusEl) statusEl.textContent = 'Queued';
+    lastStudioJobId = data.id;
+    localStorage.setItem('candy_last_studio_job_id', data.id);
+    startStudioJobPolling(data.id);
     if (resultEl) {
       resultEl.innerHTML = `
         <div class="studio-job-card">
           <strong>${escapeHTML(data.id)}</strong>
           <div>Provider: ${escapeHTML(data.provider)}</div>
+          <div>Model: ${escapeHTML(data.model || 'unknown')} · Exec: ${escapeHTML(data.execution_target || 'unknown')}</div>
           <div>Mode: ${escapeHTML(data.mode)} · Preset: ${escapeHTML(data.preset)}</div>
+          <div>Status: ${escapeHTML(data.status)} · Progress: ${escapeHTML(data.progress?.stage || 'queued')}</div>
         </div>
       `;
     }
+    await loadStudioGallery();
   } catch (error) {
     console.error('Error creating studio job:', error);
     if (statusEl) statusEl.textContent = 'Error';
     if (resultEl) resultEl.innerHTML = `<div class="studio-job-card">${escapeHTML(error.message)}</div>`;
   }
 };
+
+window.cancelStudioJob = async function() {
+  if (!lastStudioJobId) return;
+  const statusEl = document.getElementById('studioStatus');
+  try {
+    const res = await fetch(apiPath(`/api/studio/jobs/${encodeURIComponent(lastStudioJobId)}/cancel`), {
+      method: 'POST',
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `Studio API returned ${res.status}`);
+    if (statusEl) statusEl.textContent = 'Cancelled';
+    renderStudioJobCard(data);
+    await loadStudioGallery();
+    stopStudioPolling();
+  } catch (error) {
+    if (statusEl) statusEl.textContent = 'Error';
+    console.error('Error cancelling studio job:', error);
+  }
+};
+
+async function fetchStudioJob(jobId) {
+  const res = await fetch(apiPath(`/api/studio/jobs/${encodeURIComponent(jobId)}`));
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || `Studio API returned ${res.status}`);
+  return data;
+}
+
+function renderStudioJobCard(job) {
+  const resultEl = document.getElementById('studioJobResult');
+  if (!resultEl) return;
+  resultEl.innerHTML = `
+    <div class="studio-job-card">
+      <strong>${escapeHTML(job.id || job.task_id || 'studio-job')}</strong>
+      <div>Provider: ${escapeHTML(job.provider || 'unknown')} · Model: ${escapeHTML(job.model || 'unknown')}</div>
+      <div>Mode: ${escapeHTML(job.mode || 'unknown')} · Video task: ${escapeHTML(job.video_task || '-')} · Format: ${escapeHTML(job.format || '-')}</div>
+      <div>Status: ${escapeHTML(job.status || 'unknown')} · Stage: ${escapeHTML(job.progress?.stage || 'queued')}</div>
+      <div>Execution: ${escapeHTML(job.execution_target || 'unknown')}</div>
+      ${job.error ? `<div>Error: ${escapeHTML(job.error)}</div>` : ''}
+      ${Array.isArray(job.outputs) && job.outputs.length ? job.outputs.map(out => `<div><a href="${escapeHTML(mediaPath(out.url || out))}" target="_blank" rel="noopener">Download output</a></div>`).join('') : ''}
+    </div>
+  `;
+}
+
+function stopStudioPolling() {
+  if (studioJobPoller) {
+    clearInterval(studioJobPoller);
+    studioJobPoller = null;
+  }
+}
+
+function startStudioJobPolling(jobId) {
+  stopStudioPolling();
+  studioJobPoller = setInterval(async () => {
+    try {
+      const job = await fetchStudioJob(jobId);
+      renderStudioJobCard(job);
+      const statusEl = document.getElementById('studioStatus');
+      if (statusEl) statusEl.textContent = job.status || 'Queued';
+      if (['completed', 'failed', 'cancelled'].includes(job.status)) {
+        stopStudioPolling();
+      }
+    } catch {
+      stopStudioPolling();
+    }
+  }, 2500);
+}
+
+async function restoreStudioJob() {
+  if (!lastStudioJobId) return;
+  try {
+    const job = await fetchStudioJob(lastStudioJobId);
+    renderStudioJobCard(job);
+    const statusEl = document.getElementById('studioStatus');
+    if (statusEl) statusEl.textContent = job.status || 'Queued';
+    if (!['completed', 'failed', 'cancelled'].includes(job.status)) {
+      startStudioJobPolling(lastStudioJobId);
+    }
+  } catch {
+    localStorage.removeItem('candy_last_studio_job_id');
+    lastStudioJobId = null;
+  }
+}
+
+async function loadStudioGallery() {
+  const galleryEl = document.getElementById('studioGallery');
+  if (!galleryEl) return;
+  galleryEl.innerHTML = '<div class="loading-state">Loading gallery...</div>';
+  try {
+    const res = await fetch(apiPath('/api/studio/gallery?limit=12'));
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `Studio API returned ${res.status}`);
+    const items = Array.isArray(data.items) ? data.items : [];
+    if (!items.length) {
+      galleryEl.innerHTML = '<div class="loading-state">No studio jobs yet.</div>';
+      return;
+    }
+    galleryEl.innerHTML = items.map((item) => `
+      <div class="studio-job-card">
+        <strong>${escapeHTML(item.id)}</strong>
+        <div>${escapeHTML(item.mode)} · ${escapeHTML(item.video_task || item.format || '-')}</div>
+        <div>${escapeHTML(item.provider || 'unknown')} · ${escapeHTML(item.model || 'unknown')}</div>
+        <div>${escapeHTML(item.status || 'queued')} · ${escapeHTML(item.execution_target || 'unknown')}</div>
+      </div>
+    `).join('');
+  } catch (error) {
+    console.error('Error loading gallery:', error);
+    galleryEl.innerHTML = '<div class="loading-state">Gallery unavailable.</div>';
+  }
+}
+
+window.loadStudioGallery = loadStudioGallery;
 
 // Generate the dynamic session ID for database history matching the Python backend
 function getSessionId() {
