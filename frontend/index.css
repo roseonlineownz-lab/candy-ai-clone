@@ -872,7 +872,8 @@ body {
 }
 
 .studio-form-grid select,
-.studio-prompt textarea {
+.studio-prompt textarea,
+.studio-prompt input {
   width: 100%;
   min-width: 0;
   border: 1px solid var(--border-color);
@@ -892,6 +893,16 @@ body {
 .studio-prompt textarea {
   resize: vertical;
   min-height: 128px;
+}
+
+.studio-prompt input {
+  min-height: 44px;
+}
+
+.studio-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
 }
 
 .studio-checkbox {
@@ -1273,6 +1284,9 @@ body {
   }
   .avatar-call-stage {
     min-height: 140px;
+  }
+  .studio-actions {
+    grid-template-columns: 1fr;
   }
 }
 

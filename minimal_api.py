@@ -14,15 +14,21 @@ import uvicorn
 
 try:
     from src.studio_fusion import (
+        cancel_studio_job,
         create_studio_job,
+        get_studio_gallery,
         get_studio_job,
+        list_studio_jobs,
         studio_capabilities,
         studio_health,
     )
 except Exception as exc:
     print(f"Studio fusion unavailable: {exc}")
+    cancel_studio_job = None
     create_studio_job = None
+    get_studio_gallery = None
     get_studio_job = None
+    list_studio_jobs = None
     studio_capabilities = None
     studio_health = None
 
@@ -262,6 +268,13 @@ async def api_create_studio_job(request: Request):
     except ValueError as exc:
         return JSONResponse({"error": str(exc)}, status_code=400)
 
+
+@app.get("/api/studio/jobs")
+def api_list_studio_jobs(limit: int = 50):
+    if not list_studio_jobs:
+        return JSONResponse({"error": "studio unavailable"}, status_code=503)
+    return {"jobs": list_studio_jobs(limit=limit)}
+
 @app.get("/api/studio/jobs/{job_id}")
 def api_get_studio_job(job_id: str):
     if not get_studio_job:
@@ -270,6 +283,23 @@ def api_get_studio_job(job_id: str):
     if not job:
         return JSONResponse({"error": "not found"}, status_code=404)
     return job
+
+
+@app.post("/api/studio/jobs/{job_id}/cancel")
+def api_cancel_studio_job(job_id: str):
+    if not cancel_studio_job:
+        return JSONResponse({"error": "studio unavailable"}, status_code=503)
+    job = cancel_studio_job(job_id)
+    if not job:
+        return JSONResponse({"error": "not found"}, status_code=404)
+    return job
+
+
+@app.get("/api/studio/gallery")
+def api_studio_gallery(limit: int = 50, persona: str | None = None):
+    if not get_studio_gallery:
+        return JSONResponse({"error": "studio unavailable"}, status_code=503)
+    return {"items": get_studio_gallery(limit=limit, persona=persona)}
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8069, log_level="info")
