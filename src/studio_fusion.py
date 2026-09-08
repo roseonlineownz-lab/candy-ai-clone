@@ -11,6 +11,7 @@ import json
 import os
 import hashlib
 import re
+import threading
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -41,6 +42,7 @@ PROVIDER_MODELS = {
     "higgsfield": "higgsfield-web",
 }
 JOB_ID_RE = re.compile(r"^studio-[a-f0-9]{12}$")
+JOB_WRITE_LOCK = threading.Lock()
 
 
 def _now() -> str:
@@ -197,7 +199,7 @@ def _load_idempotency_map() -> dict[str, str]:
 
 def _save_idempotency_map(value: dict[str, str]) -> None:
     STATE_DIR.mkdir(parents=True, exist_ok=True)
-    IDEMPOTENCY_FILE.write_text(json.dumps(value, indent=2), encoding="utf-8")
+    _atomic_write_json(IDEMPOTENCY_FILE, value)
 
 
 def _normalize_job_id(job_id: str) -> str:
@@ -210,7 +212,14 @@ def _normalize_job_id(job_id: str) -> str:
 def _write_job(job_id: str, job: dict[str, Any]) -> None:
     JOBS_DIR.mkdir(parents=True, exist_ok=True)
     path = _job_manifest_path(job_id)
-    path.write_text(json.dumps(job, indent=2), encoding="utf-8")
+    _atomic_write_json(path, job)
+
+
+def _atomic_write_json(path: Path, value: Any) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
+    tmp.write_text(json.dumps(value, indent=2), encoding="utf-8")
+    os.replace(tmp, path)
 
 
 def _job_manifest_path(job_id: str) -> Path:
@@ -231,22 +240,30 @@ def _select_provider(
     capabilities = studio_capabilities()
     providers = capabilities["providers"]
     if preferred_provider:
+        selected = None
         for provider in providers:
             if provider["id"] == preferred_provider and mode in provider["outputs"]:
-                if provider["ready"]:
+                selected = provider
+                break
+        if selected is None:
+            raise ValueError(f"provider '{preferred_provider}' does not support mode '{mode}'")
+        if selected["ready"]:
+            return selected["id"]
+        if allow_hosted_fallback:
+            for provider in providers:
+                if provider["kind"] == "hosted" and provider["ready"] and mode in provider["outputs"]:
                     return provider["id"]
-                raise ValueError(f"provider '{preferred_provider}' is not ready")
-        raise ValueError(f"provider '{preferred_provider}' does not support mode '{mode}'")
+        raise ValueError(f"provider '{preferred_provider}' is not ready")
     for provider in providers:
         if provider["kind"] == "local" and provider["ready"] and mode in provider["outputs"]:
-            return provider["id"]
-    for provider in providers:
-        if provider["kind"] == "local" and mode in provider["outputs"]:
             return provider["id"]
     if allow_hosted_fallback:
         for provider in providers:
             if provider["kind"] == "hosted" and provider["ready"] and mode in provider["outputs"]:
                 return provider["id"]
+    for provider in providers:
+        if provider["kind"] == "local" and mode in provider["outputs"]:
+            return provider["id"]
     raise ValueError(f"no configured provider is ready for mode '{mode}'")
 
 
@@ -278,86 +295,89 @@ def create_studio_job(payload: dict[str, Any]) -> dict[str, Any]:
         if video_task in {"image_to_video", "lipsync"} and not reference:
             raise ValueError(f"reference is required for video_task '{video_task}'")
 
-    if idempotency_key:
-        idempotency_map = _load_idempotency_map()
-        known_job_id = idempotency_map.get(idempotency_key)
-        if known_job_id:
-            existing = get_studio_job(known_job_id)
-            if existing:
-                existing = dict(existing)
-                existing["deduplicated"] = True
-                return existing
-    job_id = f"studio-{uuid.uuid4().hex[:12]}"
-    provider = _select_provider(
-        mode,
-        preferred_provider,
-        allow_hosted_fallback=allow_hosted_fallback,
-    )
-    capability_map = {p["id"]: p for p in studio_capabilities()["providers"]}
-    selected_provider = capability_map.get(provider, {})
-    provider_model = PROVIDER_MODELS.get(provider, "unknown")
-    provider_kind = selected_provider.get("kind", "local")
-    execution_target = selected_provider.get("execution_target", "pc")
-    provider_error = (selected_provider.get("state") or {}).get("error")
-    provider_ready = bool(selected_provider.get("ready"))
-    input_digest = hashlib.sha256(
-        json.dumps(
-            {
-                "mode": mode,
-                "preset": preset,
-                "persona": persona,
-                "prompt": prompt,
-                "video_task": video_task if mode == "video" else None,
-                "format": output_format if mode == "image" else None,
-                "reference": bool(reference),
+    with JOB_WRITE_LOCK:
+        if idempotency_key:
+            idempotency_map = _load_idempotency_map()
+            known_job_id = idempotency_map.get(idempotency_key)
+            if known_job_id:
+                existing = get_studio_job(known_job_id)
+                if existing:
+                    existing = dict(existing)
+                    existing["deduplicated"] = True
+                    return existing
+        else:
+            idempotency_map = {}
+
+        job_id = f"studio-{uuid.uuid4().hex[:12]}"
+        provider = _select_provider(
+            mode,
+            preferred_provider,
+            allow_hosted_fallback=allow_hosted_fallback,
+        )
+        capability_map = {p["id"]: p for p in studio_capabilities()["providers"]}
+        selected_provider = capability_map.get(provider, {})
+        provider_model = PROVIDER_MODELS.get(provider, "unknown")
+        provider_kind = selected_provider.get("kind", "local")
+        execution_target = selected_provider.get("execution_target", "pc")
+        provider_error = (selected_provider.get("state") or {}).get("error")
+        provider_ready = bool(selected_provider.get("ready"))
+        input_digest = hashlib.sha256(
+            json.dumps(
+                {
+                    "mode": mode,
+                    "preset": preset,
+                    "persona": persona,
+                    "prompt": prompt,
+                    "video_task": video_task if mode == "video" else None,
+                    "format": output_format if mode == "image" else None,
+                    "reference": bool(reference),
+                },
+                sort_keys=True,
+            ).encode("utf-8")
+        ).hexdigest()
+        job = {
+            "id": job_id,
+            "task_id": job_id,
+            "status": "queued" if provider_ready else "error",
+            "created_at": _now(),
+            "mode": mode,
+            "video_task": video_task if mode == "video" else None,
+            "format": output_format if mode == "image" else None,
+            "preset": preset,
+            "persona": persona,
+            "provider": provider,
+            "model": provider_model,
+            "execution_target": execution_target,
+            "prompt": prompt,
+            "reference": reference if reference else None,
+            "outputs": [],
+            "input_digest": input_digest,
+            "error": None if provider_ready else (provider_error or f"provider '{provider}' not ready"),
+            "progress": {
+                "percent": 0,
+                "stage": "queued" if provider_ready else "blocked",
             },
-            sort_keys=True,
-        ).encode("utf-8")
-    ).hexdigest()
-    job = {
-        "id": job_id,
-        "task_id": job_id,
-        "status": "queued" if provider_ready else "error",
-        "created_at": _now(),
-        "mode": mode,
-        "video_task": video_task if mode == "video" else None,
-        "format": output_format if mode == "image" else None,
-        "preset": preset,
-        "persona": persona,
-        "provider": provider,
-        "model": provider_model,
-        "execution_target": execution_target,
-        "prompt": prompt,
-        "reference": reference if reference else None,
-        "outputs": [],
-        "input_digest": input_digest,
-        "error": None if provider_ready else (provider_error or f"provider '{provider}' not ready"),
-        "progress": {
-            "percent": 0,
-            "stage": "queued" if provider_ready else "blocked",
-        },
-        "provider_state": {
-            "configured": bool((selected_provider.get("state") or {}).get("configured", selected_provider.get("ready"))),
-            "tested": bool((selected_provider.get("state") or {}).get("tested", selected_provider.get("ready"))),
-            "busy": False,
-            "error": (selected_provider.get("state") or {}).get("error"),
-        },
-        "routing": {
-            "local_first": True,
-            "fallback_allowed": allow_hosted_fallback,
-            "provider_kind": provider_kind,
-            "notes": [
-                "Generated as a manifest; media workers can pick this job up later.",
-                "No provider secrets are stored in the job file.",
-            ],
-        },
-    }
-    _write_job(job_id, job)
-    if idempotency_key:
-        idempotency_map = _load_idempotency_map()
-        idempotency_map[idempotency_key] = job_id
-        _save_idempotency_map(idempotency_map)
-    return job
+            "provider_state": {
+                "configured": bool((selected_provider.get("state") or {}).get("configured", selected_provider.get("ready"))),
+                "tested": bool((selected_provider.get("state") or {}).get("tested", selected_provider.get("ready"))),
+                "busy": False,
+                "error": (selected_provider.get("state") or {}).get("error"),
+            },
+            "routing": {
+                "local_first": True,
+                "fallback_allowed": allow_hosted_fallback,
+                "provider_kind": provider_kind,
+                "notes": [
+                    "Generated as a manifest; media workers can pick this job up later.",
+                    "No provider secrets are stored in the job file.",
+                ],
+            },
+        }
+        _write_job(job_id, job)
+        if idempotency_key:
+            idempotency_map[idempotency_key] = job_id
+            _save_idempotency_map(idempotency_map)
+        return job
 
 
 def get_studio_job(job_id: str) -> dict[str, Any] | None:

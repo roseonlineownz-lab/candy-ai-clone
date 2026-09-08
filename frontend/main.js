@@ -13,6 +13,7 @@ let avatarTimer = null;
 let studioCapabilities = null;
 let studioJobPoller = null;
 let lastStudioJobId = localStorage.getItem('candy_last_studio_job_id') || null;
+let studioInflightIdempotencyKey = localStorage.getItem('candy_studio_inflight_idempotency_key') || null;
 let activeCategoryFilter = 'all';
 
 const isCandySubpath = window.location.pathname.startsWith('/candy');
@@ -289,6 +290,7 @@ window.createStudioJob = async function() {
   const statusEl = document.getElementById('studioStatus');
   const resultEl = document.getElementById('studioJobResult');
   const prompt = document.getElementById('studioPrompt')?.value?.trim() || '';
+  let requestIdempotencyKey = null;
   const payload = {
     mode: document.getElementById('studioMode')?.value || 'image',
     preset: document.getElementById('studioPreset')?.value || 'custom',
@@ -297,7 +299,7 @@ window.createStudioJob = async function() {
     format: document.getElementById('studioFormat')?.value || '1:1',
     video_task: document.getElementById('studioVideoTask')?.value || 'text_to_video',
     reference: document.getElementById('studioReference')?.value?.trim() || undefined,
-    idempotency_key: crypto.randomUUID(),
+    idempotency_key: requestIdempotencyKey,
     allow_hosted_fallback: Boolean(document.getElementById('studioFallback')?.checked),
   };
 
@@ -305,6 +307,7 @@ window.createStudioJob = async function() {
     if (resultEl) resultEl.innerHTML = '<div class="studio-job-card">Prompt is required.</div>';
     return;
   }
+  requestIdempotencyKey = getOrCreateStudioInflightKey();
 
   if (statusEl) statusEl.textContent = 'Queueing';
   try {
@@ -315,9 +318,12 @@ window.createStudioJob = async function() {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || `Studio API returned ${res.status}`);
-    if (statusEl) statusEl.textContent = 'Queued';
+    if (statusEl) statusEl.textContent = data.status || 'Queued';
     lastStudioJobId = data.id;
     localStorage.setItem('candy_last_studio_job_id', data.id);
+    if (isTerminalStudioStatus(data.status)) {
+      clearStudioInflightKey();
+    }
     startStudioJobPolling(data.id);
     if (resultEl) {
       resultEl.innerHTML = `
@@ -349,6 +355,9 @@ window.cancelStudioJob = async function() {
     if (!res.ok) throw new Error(data.error || `Studio API returned ${res.status}`);
     if (statusEl) statusEl.textContent = 'Cancelled';
     renderStudioJobCard(data);
+    if (isTerminalStudioStatus(data.status)) {
+      clearStudioInflightKey();
+    }
     await loadStudioGallery();
     stopStudioPolling();
   } catch (error) {
@@ -385,6 +394,22 @@ function stopStudioPolling() {
     clearInterval(studioJobPoller);
     studioJobPoller = null;
   }
+
+  function isTerminalStudioStatus(status) {
+    return ['completed', 'failed', 'cancelled'].includes((status || '').toLowerCase());
+  }
+
+  function getOrCreateStudioInflightKey() {
+    if (studioInflightIdempotencyKey) return studioInflightIdempotencyKey;
+    studioInflightIdempotencyKey = crypto.randomUUID();
+    localStorage.setItem('candy_studio_inflight_idempotency_key', studioInflightIdempotencyKey);
+    return studioInflightIdempotencyKey;
+  }
+
+  function clearStudioInflightKey() {
+    studioInflightIdempotencyKey = null;
+    localStorage.removeItem('candy_studio_inflight_idempotency_key');
+  }
 }
 
 function startStudioJobPolling(jobId) {
@@ -395,7 +420,8 @@ function startStudioJobPolling(jobId) {
       renderStudioJobCard(job);
       const statusEl = document.getElementById('studioStatus');
       if (statusEl) statusEl.textContent = job.status || 'Queued';
-      if (['completed', 'failed', 'cancelled'].includes(job.status)) {
+      if (isTerminalStudioStatus(job.status)) {
+        clearStudioInflightKey();
         stopStudioPolling();
       }
     } catch {
@@ -411,12 +437,15 @@ async function restoreStudioJob() {
     renderStudioJobCard(job);
     const statusEl = document.getElementById('studioStatus');
     if (statusEl) statusEl.textContent = job.status || 'Queued';
-    if (!['completed', 'failed', 'cancelled'].includes(job.status)) {
+    if (!isTerminalStudioStatus(job.status)) {
       startStudioJobPolling(lastStudioJobId);
+    } else {
+      clearStudioInflightKey();
     }
   } catch {
     localStorage.removeItem('candy_last_studio_job_id');
     lastStudioJobId = null;
+    clearStudioInflightKey();
   }
 }
 

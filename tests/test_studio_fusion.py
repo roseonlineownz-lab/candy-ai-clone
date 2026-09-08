@@ -1,4 +1,5 @@
 import json
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
@@ -98,3 +99,36 @@ def test_cancel_and_gallery(monkeypatch, tmp_path):
     ids = {item["id"] for item in gallery}
     assert image_job["id"] in ids
     assert video_job["id"] in ids
+
+
+def test_select_provider_prefers_hosted_when_fallback_enabled(monkeypatch):
+    monkeypatch.setattr(studio_fusion, "studio_capabilities", lambda: {
+        "providers": [
+            {"id": "comfyui", "kind": "local", "ready": False, "outputs": ["image", "video"]},
+            {"id": "higgsfield", "kind": "hosted", "ready": True, "outputs": ["image", "video"]},
+        ]
+    })
+    provider = studio_fusion._select_provider("image", allow_hosted_fallback=True)
+    assert provider == "higgsfield"
+
+
+def test_create_studio_job_is_concurrency_safe_for_same_idempotency_key(monkeypatch, tmp_path):
+    monkeypatch.setattr(studio_fusion, "STATE_DIR", tmp_path)
+    monkeypatch.setattr(studio_fusion, "JOBS_DIR", tmp_path / "jobs")
+    monkeypatch.setattr(studio_fusion, "IDEMPOTENCY_FILE", tmp_path / "idempotency.json")
+    monkeypatch.setattr(studio_fusion, "_http_ok", lambda url, timeout=0.5: False)
+
+    payload = {
+        "mode": "image",
+        "prompt": "same prompt",
+        "idempotency_key": "parallel-retry-key",
+    }
+
+    def _create():
+        return studio_fusion.create_studio_job(payload)["id"]
+
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        ids = list(pool.map(lambda _: _create(), range(6)))
+
+    assert len(set(ids)) == 1
+    assert len(list((tmp_path / "jobs").glob("studio-*.json"))) == 1
